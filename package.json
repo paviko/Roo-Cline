@@ -93,6 +93,23 @@
         "command": "roo-cline.openInNewTab",
         "title": "Open In New Tab",
         "category": "Roo Cline"
+      },
+      {
+        "command": "roo-cline.addToContext",
+        "title": "Cline: Add to Context",
+        "category": "Roo Cline"
+      },
+      {
+        "command": "roo-cline.addAllOpenToContext",
+        "title": "Add All Open Files to Context",
+        "category": "Roo Cline",
+        "icon": "$(files)"
+      },
+      {
+        "command": "roo-cline.addActiveToContext",
+        "title": "Add Active File to Context",
+        "category": "Roo Cline",
+        "icon": "$(file)"
       }
     ],
     "menus": {
@@ -121,6 +138,35 @@
           "command": "roo-cline.settingsButtonClicked",
           "group": "navigation@5",
           "when": "view == roo-cline.SidebarProvider"
+        },
+        {
+          "command": "roo-cline.addAllOpenToContext",
+          "group": "navigation@6",
+          "when": "view == roo-cline.SidebarProvider"
+        },
+        {
+          "command": "roo-cline.addActiveToContext",
+          "group": "navigation@7",
+          "when": "view == roo-cline.SidebarProvider"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "roo-cline.addToContext",
+          "group": "cline@1",
+          "when": "resourceLangId"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "roo-cline.addToContext",
+          "group": "cline@1"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "roo-cline.addToContext",
+          "group": "cline@1"
         }
       ]
     },

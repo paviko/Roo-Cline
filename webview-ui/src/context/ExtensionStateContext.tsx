@@ -30,6 +30,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setAllowedCommands: (value: string[]) => void
 	setSoundEnabled: (value: boolean) => void
 	setDiffEnabled: (value: boolean) => void
+	cwd: string
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -52,6 +53,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
+	const [cwd, setCwd] = useState<string>("")
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
@@ -84,6 +86,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 			}
 			case "workspaceUpdated": {
 				setFilePaths(message.filePaths ?? [])
+				setCwd(message.cwd ?? "")
 				break
 			}
 			case "partialMessage": {
@@ -140,6 +143,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setAllowedCommands: (value) => setState((prevState) => ({ ...prevState, allowedCommands: value })),
 		setSoundEnabled: (value) => setState((prevState) => ({ ...prevState, soundEnabled: value })),
 		setDiffEnabled: (value) => setState((prevState) => ({ ...prevState, diffEnabled: value })),
+		cwd,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
