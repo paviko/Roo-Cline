@@ -105,6 +105,9 @@ config.optimization.splitChunks = {
 // Disable code chunks
 config.optimization.runtimeChunk = false
 
+// Set source map to inline-source-map
+config.devtool = "inline-source-map"
+
 // Rename main.{hash}.js to main.js
 config.output.filename = "static/js/[name].js"
 
