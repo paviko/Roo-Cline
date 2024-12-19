@@ -31,6 +31,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setSoundEnabled: (value: boolean) => void
 	setDiffEnabled: (value: boolean) => void
 	cwd: string
+	noErrorsWatch: boolean
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -54,6 +55,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [cwd, setCwd] = useState<string>("")
+	const [noErrorsWatch, setNoErrorsWatch] = useState<boolean>(false)
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
@@ -144,6 +146,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setSoundEnabled: (value) => setState((prevState) => ({ ...prevState, soundEnabled: value })),
 		setDiffEnabled: (value) => setState((prevState) => ({ ...prevState, diffEnabled: value })),
 		cwd,
+		noErrorsWatch
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

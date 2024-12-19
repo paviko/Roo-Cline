@@ -184,6 +184,39 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	context.subscriptions.push(
+		vscode.commands.registerCommand("roo-cline.kebabButtonClicked", async () => {
+			const visibleProvider = ClineProvider.getVisibleInstance()
+			if (!visibleProvider) {
+				return
+			}
+
+			const checkboxItems: vscode.QuickPickItem[] = [
+				{ label: "Option 1", picked: false },
+				{ label: "Option 2", picked: true },
+				{ label: "Option 3", picked: false },
+			];
+
+			const selectedItems = await vscode.window.showQuickPick(checkboxItems, {
+				canPickMany: true,
+				placeHolder: "Select options",
+			});
+
+			outputChannel.appendLine("Selected items logged to console");
+			if (selectedItems) {
+				console.log("Selected items:", selectedItems);
+				outputChannel.appendLine(`Selected items: ${selectedItems.map(item => item.label).join(", ")}`)
+
+				// Send the value of options (checked/unchecked) using visibleProvider.postMessageToWebview()
+				// await visibleProvider.postMessageToWebview({
+				// 	type: "action",
+				// 	action: "kebabButtonClicked",
+				// 	options: selectedItems.map(item => ({ label: item.label, checked: item.checked })),
+				// });
+			}
+		}),
+	)
+
 	/*
 	We use the text document content provider API to show the left side for diff view by creating a virtual document for the original content. This makes it readonly so users know to edit the right side if they want to keep their changes.
 

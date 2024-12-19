@@ -110,6 +110,11 @@
         "title": "Add Active File to Context",
         "category": "Roo Cline",
         "icon": "$(file)"
+      },
+      {
+        "command": "roo-cline.kebabButtonClicked",
+        "title": "Flow options",
+        "icon": "$(kebab-vertical)"
       }
     ],
     "menus": {
@@ -147,6 +152,11 @@
         {
           "command": "roo-cline.addActiveToContext",
           "group": "navigation@7",
+          "when": "view == roo-cline.SidebarProvider"
+        },
+        {
+          "command": "roo-cline.kebabButtonClicked",
+          "group": "navigation@8",
           "when": "view == roo-cline.SidebarProvider"
         }
       ],
