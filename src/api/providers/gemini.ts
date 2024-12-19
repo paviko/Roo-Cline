@@ -45,11 +45,11 @@ export class GeminiHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: GeminiModelId; info: ModelInfo } {
+	getModel(): { id: GeminiModelId; info: ModelInfo; requestsPerMinuteLimit?: number } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in geminiModels) {
 			const id = modelId as GeminiModelId
-			return { id, info: geminiModels[id] }
+			return { id, info: geminiModels[id], requestsPerMinuteLimit: this.options.requestsPerMinuteLimit?.[id] }
 		}
 		return { id: geminiDefaultModelId, info: geminiModels[geminiDefaultModelId] }
 	}

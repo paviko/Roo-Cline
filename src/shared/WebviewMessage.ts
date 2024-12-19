@@ -37,6 +37,7 @@ export interface WebviewMessage {
 		| "restartMcpServer"
 		| "toggleToolAlwaysAllow"
 		| "toggleMcpServer"
+		| "requestsPerMinuteLimit"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
@@ -49,6 +50,7 @@ export interface WebviewMessage {
 	serverName?: string
 	toolName?: string
 	alwaysAllow?: boolean
+	requestsPerMinuteLimit?: Record<string, number>
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

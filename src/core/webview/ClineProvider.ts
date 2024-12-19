@@ -68,6 +68,7 @@ type GlobalStateKey =
 	| "soundEnabled"
 	| "diffEnabled"
 	| "alwaysAllowMcp"
+	| "requestsPerMinuteLimit"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -406,6 +407,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openRouterModelId,
 								openRouterModelInfo,
 								openRouterUseMiddleOutTransform,
+								requestsPerMinuteLimit,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -432,6 +434,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
 							await this.updateGlobalState("openRouterUseMiddleOutTransform", openRouterUseMiddleOutTransform)
+							await this.updateGlobalState("requestsPerMinuteLimit", requestsPerMinuteLimit)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -595,6 +598,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "diffEnabled":
 						const diffEnabled = message.bool ?? true
 						await this.updateGlobalState("diffEnabled", diffEnabled)
+						await this.postStateToWebview()
+						break
+					case "requestsPerMinuteLimit":
+						await this.updateGlobalState("requestsPerMinuteLimit", message.requestsPerMinuteLimit)
 						await this.postStateToWebview()
 						break
 				}
@@ -1040,6 +1047,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			allowedCommands,
 			soundEnabled,
 			diffEnabled,
+			requestsPerMinuteLimit,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1077,6 +1085,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("allowedCommands") as Promise<string[] | undefined>,
 			this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("diffEnabled") as Promise<boolean | undefined>,
+			this.getGlobalState("requestsPerMinuteLimit") as Promise<any | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1120,6 +1129,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openRouterModelId,
 				openRouterModelInfo,
 				openRouterUseMiddleOutTransform,
+				requestsPerMinuteLimit,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

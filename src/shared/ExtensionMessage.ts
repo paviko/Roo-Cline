@@ -54,6 +54,7 @@ export interface ExtensionState {
 	allowedCommands?: string[]
 	soundEnabled?: boolean
 	diffEnabled?: boolean
+	requestsPerMinuteLimit?: Record<string, number>
 }
 
 export interface ClineMessage {

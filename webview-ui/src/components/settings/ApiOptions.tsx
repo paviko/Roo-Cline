@@ -11,6 +11,7 @@ import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react
 import { useEvent, useInterval } from "react-use"
 import {
 	ApiConfiguration,
+	GeminiModelId,
 	ModelInfo,
 	anthropicDefaultModelId,
 	anthropicModels,
@@ -43,7 +44,7 @@ interface ApiOptionsProps {
 }
 
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) => {
-	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, uriScheme, requestsPerMinuteLimit } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
@@ -112,6 +113,76 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					</VSCodeOption>
 				))}
 			</VSCodeDropdown>
+		)
+	}
+
+	const renderGeminiOptions = () => {
+		const currentModelId = apiConfiguration?.apiModelId as GeminiModelId || geminiDefaultModelId;
+		const currentModel = geminiModels[currentModelId];
+		const currentRateLimit = apiConfiguration?.requestsPerMinuteLimit?.[currentModelId] ?? currentModel.requestsPerMinuteLimit;
+
+		return (
+			<Fragment>
+				<VSCodeTextField
+					value={apiConfiguration?.geminiApiKey || ""}
+					onChange={(e) =>
+						setApiConfiguration({
+							...apiConfiguration,
+							geminiApiKey: (e.target as HTMLInputElement).value,
+						})
+					}
+					type="password"
+					placeholder="Enter your Google Gemini API key"
+				>
+					API Key
+				</VSCodeTextField>
+				{showModelOptions && (
+					<Fragment>
+						<VSCodeDropdown
+							value={currentModelId}
+							onChange={(e) =>
+								setApiConfiguration({
+									...apiConfiguration,
+									apiModelId: (e.target as HTMLSelectElement).value as GeminiModelId,
+								})
+							}
+						>
+							{Object.entries(geminiModels).map(([id, info]) => (
+								<VSCodeOption key={id} value={id}>
+									{id}
+								</VSCodeOption>
+							))}
+						</VSCodeDropdown>
+						<VSCodeTextField
+							value={currentRateLimit?.toString() || ""}
+							onChange={(e) => {
+								const newRateLimit = parseInt((e.target as HTMLInputElement).value);
+								const existingModelInfo = apiConfiguration?.requestsPerMinuteLimit?.[currentModelId] || {};
+								const baseModelInfo = geminiModels[currentModelId];
+								
+								const updatedRequestsPerMinuteLimit = {
+									...apiConfiguration?.requestsPerMinuteLimit,
+									[currentModelId]: newRateLimit
+								};
+
+								// Send dedicated message for requestsPerMinuteLimit
+								vscode.postMessage({ 
+									type: "requestsPerMinuteLimit", 
+									requestsPerMinuteLimit: updatedRequestsPerMinuteLimit 
+								});
+
+								setApiConfiguration({
+									...apiConfiguration,
+									requestsPerMinuteLimit: updatedRequestsPerMinuteLimit
+								});
+							}}
+							placeholder="Enter requests per minute limit"
+						>
+							Requests per minute limit
+						</VSCodeTextField>
+					</Fragment>
+				)}
+			</Fragment>
 		)
 	}
 
@@ -392,33 +463,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 				</div>
 			)}
 
-			{selectedProvider === "gemini" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.geminiApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("geminiApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>Gemini API Key</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.geminiApiKey && (
-							<VSCodeLink
-								href="https://ai.google.dev/"
-								style={{ display: "inline", fontSize: "inherit" }}>
-								You can get a Gemini API key by signing up here.
-							</VSCodeLink>
-						)}
-					</p>
-				</div>
-			)}
+			{selectedProvider === "gemini" && renderGeminiOptions()}
 
 			{selectedProvider === "openai" && (
 				<div>
@@ -655,7 +700,23 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
 							{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
 							{selectedProvider === "vertex" && createDropdown(vertexModels)}
-							{selectedProvider === "gemini" && createDropdown(geminiModels)}
+							{selectedProvider === "gemini" && (
+								<VSCodeDropdown
+									value={apiConfiguration?.apiModelId || geminiDefaultModelId}
+									onChange={(e) =>
+										setApiConfiguration({
+											...apiConfiguration,
+											apiModelId: (e.target as HTMLSelectElement).value,
+										})
+									}
+								>
+									{Object.entries(geminiModels).map(([id, info]) => (
+										<VSCodeOption key={id} value={id}>
+											{id}
+										</VSCodeOption>
+									))}
+								</VSCodeDropdown>
+							)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 						</div>
 

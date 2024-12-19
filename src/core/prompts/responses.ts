@@ -3,7 +3,9 @@ import * as path from "path"
 import * as diff from "diff"
 
 export const formatResponse = {
-	toolDenied: () => `The user denied this operation.`,
+	toolDenied: () => `The user denied this operation.
+	
+${nextStepsInstructions}`,
 
 	toolDeniedWithFeedback: (feedback?: string) =>
 		`The user denied this operation and provided the following feedback:\n<feedback>\n${feedback}\n</feedback>`,
@@ -15,12 +17,7 @@ export const formatResponse = {
 
 ${toolUseInstructionsReminder}
 
-# Next Steps
-
-If you have completed the user's task, use the attempt_completion tool. 
-If you require additional information from the user, use the ask_followup_question tool. 
-Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task. 
-(This is an automated message, so do not respond to it conversationally.)`,
+${nextStepsInstructions}`,
 
 	tooManyMistakes: (feedback?: string) =>
 		`You seem to be having trouble proceeding. The user has provided the following feedback to help guide you:\n<feedback>\n${feedback}\n</feedback>`,
@@ -131,3 +128,11 @@ I have completed the task...
 </attempt_completion>
 
 Always adhere to this format for all tool uses to ensure proper parsing and execution.`
+
+const nextStepsInstructions = `
+# Next Steps
+
+If you have completed the user's task, use the attempt_completion tool. 
+If you require additional information from the user, use the ask_followup_question tool. 
+Otherwise, if you have not completed the task and do not need additional information, then proceed with the next step of the task. 
+(This is an automated message, so do not respond to it conversationally.)`
