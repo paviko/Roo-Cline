@@ -8,6 +8,7 @@ export type ApiProvider =
 	| "lmstudio"
 	| "gemini"
 	| "openai-native"
+	| "manual"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string

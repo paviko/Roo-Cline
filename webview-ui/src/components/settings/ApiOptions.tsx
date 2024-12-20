@@ -206,6 +206,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
+					<VSCodeOption value="manual">Manual chat</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
 
@@ -674,6 +675,11 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 				</div>
 			)}
 
+			{selectedProvider === "manual" && (
+				<div>
+				</div>
+			)}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -927,6 +933,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.lmStudioModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
+		case "manual":
+			return {
+				selectedProvider: provider,
+				selectedModelId: "",
+				selectedModelInfo: {supportsPromptCache: false},
 			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
