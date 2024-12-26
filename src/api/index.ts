@@ -10,13 +10,15 @@ import { LmStudioHandler } from "./providers/lmstudio"
 import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 import { ApiStream } from "./transform/stream"
+import { ManualHandler } from "./providers/manual"
+import * as vscode from 'vscode'
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
-	getModel(): { id: string; info: ModelInfo }
+	getModel(): { id: string; info: ModelInfo; requestsPerMinuteLimit?: number }
 }
 
-export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
+export function buildApiHandler(configuration: ApiConfiguration, extensionUri: vscode.Uri): ApiHandler {
 	const { apiProvider, ...options } = configuration
 	switch (apiProvider) {
 		case "anthropic":
@@ -37,6 +39,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new GeminiHandler(options)
 		case "openai-native":
 			return new OpenAiNativeHandler(options)
+		case "manual":
+			return new ManualHandler(options, extensionUri)
 		default:
 			return new AnthropicHandler(options)
 	}

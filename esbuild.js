@@ -62,6 +62,32 @@ const copyWasmFiles = {
 	},
 }
 
+const copyWebviewFiles = {
+	name: "copy-webview-files",
+	setup(build) {
+		build.onEnd(() => {
+			const sourceDir = path.join(__dirname, "src", "webview")
+			const targetDir = path.join(__dirname, "dist", "webview")
+
+			// Create target directory if it doesn't exist
+			if (!fs.existsSync(targetDir)) {
+				fs.mkdirSync(targetDir, { recursive: true })
+			}
+
+			// Copy webview files
+			const files = fs.readdirSync(sourceDir)
+			files.forEach(file => {
+				if (file.endsWith('.html')) {
+					fs.copyFileSync(
+						path.join(sourceDir, file),
+						path.join(targetDir, file)
+					)
+				}
+			})
+		})
+	}
+}
+
 const extensionConfig = {
 	bundle: true,
 	minify: production,
@@ -71,6 +97,7 @@ const extensionConfig = {
 		copyWasmFiles,
 		/* add to the end of plugins array */
 		esbuildProblemMatcherPlugin,
+		copyWebviewFiles
 	],
 	entryPoints: ["src/extension.ts"],
 	format: "cjs",

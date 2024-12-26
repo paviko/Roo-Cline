@@ -58,6 +58,7 @@ export interface ExtensionState {
 	browserLargeViewport?: boolean
 	fuzzyMatchThreshold?: number
 	preferredLanguage: string
+	requestsPerMinuteLimit?: Record<string, number>
 }
 
 export interface ClineMessage {

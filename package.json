@@ -110,6 +110,11 @@
         "title": "Add Active File to Context",
         "category": "Roo Cline",
         "icon": "$(file)"
+      },
+      {
+        "command": "roo-cline.kebabButtonClicked",
+        "title": "Flow options",
+        "icon": "$(kebab-vertical)"
       }
     ],
     "menus": {
@@ -147,6 +152,11 @@
         {
           "command": "roo-cline.addActiveToContext",
           "group": "navigation@7",
+          "when": "view == roo-cline.SidebarProvider"
+        },
+        {
+          "command": "roo-cline.kebabButtonClicked",
+          "group": "navigation@8",
           "when": "view == roo-cline.SidebarProvider"
         }
       ],
@@ -201,6 +211,7 @@
     "install:all": "npm install && cd webview-ui && npm install",
     "lint": "eslint src --ext ts && npm run lint --prefix webview-ui",
     "package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
+    "package:debug": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "start:webview": "cd webview-ui && npm run start",
     "test": "jest && npm run test:webview",
@@ -209,7 +220,7 @@
     "publish:marketplace": "vsce publish",
     "publish": "npm run build && changeset publish && npm install --package-lock-only",
     "version-packages": "changeset version && npm install --package-lock-only",
-    "vscode:prepublish": "npm run package",
+    "vscode:prepublish": "npm run package:debug",
     "vsix": "mkdir -p bin && npx vsce package --out bin",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",

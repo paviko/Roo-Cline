@@ -94,6 +94,8 @@ export class Cline {
 	private didAlreadyUseTool = false
 	private didCompleteReadingStream = false
 
+	private static requestTimestamps: number[] = []
+
 	constructor(
 		provider: ClineProvider,
 		apiConfiguration: ApiConfiguration,
@@ -105,7 +107,7 @@ export class Cline {
 		historyItem?: HistoryItem | undefined,
 	) {
 		this.providerRef = new WeakRef(provider)
-		this.api = buildApiHandler(apiConfiguration)
+		this.api = buildApiHandler(apiConfiguration, provider.context.extensionUri)
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context)
@@ -768,6 +770,27 @@ export class Cline {
 		if (!mcpHub) {
 			throw new Error("MCP hub not available")
 		}
+
+		// Clean up timestamps older than 1 minute
+		const now = Date.now()
+		Cline.requestTimestamps = Cline.requestTimestamps.filter((ts) => now - ts < 60000)
+
+		// Check if we've hit the rate limit
+		const ratePerMinute = this.api.getModel().requestsPerMinuteLimit
+		if (ratePerMinute && Cline.requestTimestamps.length >= ratePerMinute) {
+			const oldestTimestamp = Cline.requestTimestamps[0]
+			const waitTime = Math.max(0, 60000 - (now - oldestTimestamp))
+
+			if (waitTime > 0) {
+				await this.say(
+					"text",
+					"Waiting for rate limit...",)
+				await delay(waitTime)
+			}
+		}
+
+		// Add current timestamp
+		Cline.requestTimestamps.push(now)
 
 		const { browserLargeViewport, preferredLanguage } = await this.providerRef.deref()?.getState() ?? {}
 		const systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, mcpHub, this.diffStrategy, browserLargeViewport) + await addCustomInstructions(this.customInstructions ?? '', cwd, preferredLanguage)

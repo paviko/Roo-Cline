@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="https://unpkg.com/@vscode/codicons@latest/dist/codicon.css">
+    <style>
+        body { 
+            padding: 16px; 
+            font-family: system-ui;
+            background-color: var(--vscode-editor-background);
+            color: var(--vscode-editor-foreground);
+            margin: 0;
+        }
+        .panel {
+            border: 1px solid var(--vscode-panel-border); 
+            margin-bottom: 12px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .panel-header {
+            padding: 12px;
+            background: var(--vscode-panel-background);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--vscode-panel-titleForeground);
+            font-weight: 600;
+            transition: background-color 0.2s ease;
+        }
+        .panel-header:hover {
+            background: var(--vscode-panel-background);
+        }
+        .panel-header button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            opacity: 0.7;
+            color: var(--vscode-button-foreground);
+            transition: opacity 0.2s ease;
+            margin-left: 4px;
+        }
+
+        .panel-header .button-group {
+            display: flex;
+            align-items: center;
+        }
+        .panel-header button:hover { opacity: 1; }
+        .panel-content {
+            padding: 16px; 
+            display: none;
+            background: var(--vscode-editor-background);
+        }
+        .panel-content.expanded { display: block; }
+        textarea {
+            width: 100%;
+            margin-bottom: 12px; 
+            min-height: 120px;
+            padding: 12px;
+            box-sizing: border-box;
+            background: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            transition: border-color 0.2s ease;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: var(--vscode-focusBorder);
+        }
+        #apply { 
+            padding: 10px 20px;
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s ease;
+        }
+        #apply:hover { 
+            background: var(--vscode-button-hoverBackground);
+        }
+        .button-container {
+            text-align: right;
+            margin-top: 16px;
+            padding: 8px;
+            background: var(--vscode-editor-background);
+            border-top: 1px solid var(--vscode-panel-border);
+        }
+        .codicon {
+            font-family: 'codicon';
+            font-style: normal;
+            font-weight: normal;
+            text-decoration: none;
+            text-rendering: auto;
+            text-align: center;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            user-select: none;
+            -webkit-user-select: none;
+            -ms-user-select: none;
+            color: var(--vscode-icon-foreground);
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <div class="panel-header">
+            <span>System Prompt</span>
+            <div class="button-group">
+                <button onclick="copyPromptAndRequest()" class="codicon codicon-diff-multiple" aria-label="Copy system prompt and user prompt" style="font-size: 16px;"></button>
+                <button onclick="copyToClipboard('prompt')" class="codicon codicon-copy" aria-label="Copy system prompt" style="font-size: 16px;"></button>
+            </div>
+        </div>
+        <div class="panel-content">
+            <textarea id="prompt" placeholder="System prompt" readonly></textarea>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header">
+            <span>User Prompt</span>
+            <button onclick="copyToClipboard('request')" class="codicon codicon-copy" aria-label="Copy user prompt" style="font-size: 16px;"></button>
+        </div>
+        <div class="panel-content">
+            <textarea id="request" placeholder="Last message" readonly></textarea>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header">
+            <span>Response</span>
+            <button onclick="pasteFromClipboard()" class="codicon codicon-insert" aria-label="Paste response" style="font-size: 16px;"></button>
+        </div>
+        <div class="panel-content expanded">
+            <textarea id="response" placeholder="Enter your response"></textarea>
+        </div>
+    </div>
+
+    <div class="button-container">
+        <button id="apply" onclick="submitResponse()">
+            Apply
+        </button>
+    </div>
+    <input type="text" id="clipboardHelper" style="position: absolute; left: -9999px;">
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        
+        // Initialize or restore state
+        let state = vscode.getState() || {
+            systemPrompt: '',
+            messages: '',
+            response: '',
+            panelStates: {
+                prompt: false,
+                request: false,
+                response: true
+            }
+        };
+
+        // Restore panel states
+        function restoreState() {
+            document.getElementById('prompt').value = state.systemPrompt;
+            document.getElementById('request').value = state.messages;
+            document.getElementById('response').value = state.response;
+            
+            // Restore panel collapse states
+            const panels = document.querySelectorAll('.panel');
+            panels.forEach(panel => {
+                const content = panel.querySelector('.panel-content');
+                const id = content.querySelector('textarea').id;
+                if (state.panelStates[id]) {
+                    content.classList.add('expanded');
+                } else {
+                    content.classList.remove('expanded');
+                }
+            });
+        }
+
+        // Panel toggle with state persistence
+        document.querySelectorAll('.panel-header').forEach(header => {
+            header.addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') {
+                    return;
+                }
+                const content = header.nextElementSibling;
+                const isExpanded = content.classList.toggle('expanded');
+                const textareaId = content.querySelector('textarea').id;
+                state.panelStates[textareaId] = isExpanded;
+                vscode.setState(state);
+            });
+        });
+
+        // Handle response textarea changes
+        document.getElementById('response').addEventListener('input', (e) => {
+            state.response = e.target.value;
+            vscode.setState(state);
+        });
+
+        // Handle messages from extension
+        window.addEventListener('message', event => {
+            const message = event.data;
+            switch (message.type) {
+                case 'initializeData':
+                    state.systemPrompt = message.systemPrompt;
+                    state.messages = message.messages;
+                    state.messageCount = message.messageCount;
+                    vscode.setState(state);
+                    restoreState();
+                    
+                    // Copy to clipboard based on message count
+                    const helper = document.getElementById('clipboardHelper');
+                    helper.focus();
+                    helper.select();
+                    if (message.messageCount === 1) {
+                        navigator.clipboard.writeText(getCombinedText(message.systemPrompt, message.messages));
+                    } else if (message.messageCount > 1) {
+                        navigator.clipboard.writeText(message.messages);
+                    }
+                    break;
+            }
+        });
+
+        // Initial state restoration
+        restoreState();
+
+        // Notify extension that document is ready
+        vscode.postMessage({
+            type: 'documentReady'
+        });
+
+        async function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.value;
+            document.body.focus();
+            await navigator.clipboard.writeText(text);
+        }
+
+        function getCombinedText(prompt, request) {
+            return `${prompt}\n\n${request}`;
+        }
+
+        async function copyPromptAndRequest() {
+            const prompt = document.getElementById('prompt').value;
+            const request = document.getElementById('request').value;
+            document.body.focus();
+            await navigator.clipboard.writeText(getCombinedText(prompt, request));
+        }
+
+        function pasteFromClipboard() {
+            document.body.focus();
+            navigator.clipboard.readText().then(text => {
+                document.getElementById('response').value = text;
+                submitResponse();
+            });
+        }
+
+        function submitResponse() {
+            const response = document.getElementById('response').value;
+            vscode.postMessage({
+                type: 'submitResponse',
+                response: response
+            });
+        }
+    </script>
+</body>
+</html>
