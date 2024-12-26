@@ -69,6 +69,7 @@ class WorkspaceTracker {
 				const relativePath = path.relative(cwd, file).toPosix()
 				return file.endsWith("/") ? relativePath + "/" : relativePath
 			}),
+			cwd: cwd,
 		})
 	}
 

@@ -35,6 +35,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setFuzzyMatchThreshold: (value: number) => void
 	preferredLanguage: string
 	setPreferredLanguage: (value: string) => void
+	cwd: string
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -60,6 +61,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
+	const [cwd, setCwd] = useState<string>("")
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
@@ -92,6 +94,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 			}
 			case "workspaceUpdated": {
 				setFilePaths(message.filePaths ?? [])
+				setCwd(message.cwd ?? "")
 				break
 			}
 			case "partialMessage": {
@@ -157,6 +160,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setBrowserLargeViewport: (value) => setState((prevState) => ({ ...prevState, browserLargeViewport: value })),
 		setFuzzyMatchThreshold: (value) => setState((prevState) => ({ ...prevState, fuzzyMatchThreshold: value })),
 		setPreferredLanguage: (value) => setState((prevState) => ({ ...prevState, preferredLanguage: value })),
+		cwd,
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
