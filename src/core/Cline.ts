@@ -69,6 +69,8 @@ export class Cline {
 	diffStrategy?: DiffStrategy
 	diffEnabled: boolean = false
 
+	quickSettings?: Record<string, boolean>
+
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
@@ -105,13 +107,14 @@ export class Cline {
 		task?: string | undefined,
 		images?: string[] | undefined,
 		historyItem?: HistoryItem | undefined,
+		quickSettings?: Record<string, boolean>
 	) {
 		this.providerRef = new WeakRef(provider)
 		this.api = buildApiHandler(apiConfiguration, provider.context.extensionUri)
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context)
-		this.diffViewProvider = new DiffViewProvider(cwd)
+		this.diffViewProvider = new DiffViewProvider(cwd, quickSettings)
 		this.customInstructions = customInstructions
 		this.diffEnabled = enableDiff ?? false
 		if (this.diffEnabled && this.api.getModel().id) {
@@ -126,6 +129,7 @@ export class Cline {
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
+		this.quickSettings = quickSettings
 	}
 
 	// Storing task to disk for history
@@ -793,7 +797,7 @@ export class Cline {
 		Cline.requestTimestamps.push(now)
 
 		const { browserLargeViewport, preferredLanguage } = await this.providerRef.deref()?.getState() ?? {}
-		const systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, mcpHub, this.diffStrategy, browserLargeViewport) + await addCustomInstructions(this.customInstructions ?? '', cwd, preferredLanguage)
+		const systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, mcpHub, this.diffStrategy, browserLargeViewport, this.quickSettings) + await addCustomInstructions(this.customInstructions ?? '', cwd, preferredLanguage)
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
@@ -1009,7 +1013,7 @@ export class Cline {
 							this.didRejectTool = true
 							return false
 						}
-						pushToolResult(formatResponse.toolDenied())
+						pushToolResult(formatResponse.toolDenied(this.quickSettings))
 						// this.toolResults.push({
 						// 	type: "tool_result",
 						// 	tool_use_id: toolUseId,

@@ -73,6 +73,7 @@ type GlobalStateKey =
 	| "fuzzyMatchThreshold"
 	| "preferredLanguage" // Language setting for Cline's communication
 	| "requestsPerMinuteLimit"
+	| "quickSettings"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -221,7 +222,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			apiConfiguration,
 			customInstructions,
 			diffEnabled,
-			fuzzyMatchThreshold
+			fuzzyMatchThreshold,
+			quickSettings
 		} = await this.getState()
 		
 		this.cline = new Cline(
@@ -231,7 +233,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			diffEnabled,
 			fuzzyMatchThreshold,
 			task,
-			images
+			images,
+			undefined,
+			quickSettings
 		)
 	}
 
@@ -241,7 +245,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			apiConfiguration,
 			customInstructions,
 			diffEnabled,
-			fuzzyMatchThreshold
+			fuzzyMatchThreshold,
+			quickSettings
 		} = await this.getState()
 		
 		this.cline = new Cline(
@@ -252,7 +257,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			fuzzyMatchThreshold,
 			undefined,
 			undefined,
-			historyItem
+			historyItem,
+			quickSettings
 		)
 	}
 
@@ -1088,6 +1094,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			fuzzyMatchThreshold,
 			preferredLanguage,
 			requestsPerMinuteLimit,
+			quickSettings,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1130,6 +1137,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("fuzzyMatchThreshold") as Promise<number | undefined>,
 			this.getGlobalState("preferredLanguage") as Promise<string | undefined>,
 			this.getGlobalState("requestsPerMinuteLimit") as Promise<any | undefined>,
+			this.getGlobalState("quickSettings") as Promise<Record<string, boolean> | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1216,6 +1224,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				// Return mapped language or default to English
 				return langMap[vscodeLang.split('-')[0]] ?? 'English';
 			})(),
+			quickSettings,
 		}
 	}
 

@@ -7,6 +7,7 @@ import { formatResponse } from "../../core/prompts/responses"
 import { DecorationController } from "./DecorationController"
 import * as diff from "diff"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
+import { KebabButtonOptions } from "../../core/webview/commands/KebabButtonCommand"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
@@ -24,7 +25,7 @@ export class DiffViewProvider {
 	private streamedLines: string[] = []
 	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
 
-	constructor(private cwd: string) {}
+	constructor(private cwd: string, private quickSettings?: Record<string, boolean> | undefined) {}
 
 	async open(relPath: string): Promise<void> {
 		this.relPath = relPath
@@ -175,13 +176,13 @@ export class DiffViewProvider {
 		initial fix is usually correct and it may just take time for linters to catch up.
 		*/
 		const postDiagnostics = vscode.languages.getDiagnostics()
-		const newProblems = diagnosticsToProblemsString(
+		const newProblems = this.quickSettings?.[KebabButtonOptions.SendErrorProblems.value] ?? true ? diagnosticsToProblemsString(
 			getNewDiagnostics(this.preDiagnostics, postDiagnostics),
 			[
 				vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
 			],
 			this.cwd,
-		) // will be empty string if no errors
+		) : "" // will be empty string if no errors
 		const newProblemsMessage =
 			newProblems.length > 0 ? `\n\nNew problems detected after saving the file:\n${newProblems}` : ""
 

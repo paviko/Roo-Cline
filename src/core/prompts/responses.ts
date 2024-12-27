@@ -1,11 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as path from "path"
 import * as diff from "diff"
+import { KebabButtonOptions } from "../webview/commands/KebabButtonCommand"
 
 export const formatResponse = {
-	toolDenied: () => `The user denied this operation.
-	
-${nextStepsInstructions}`,
+	toolDenied: (quickSettings?: Record<string, boolean> | undefined) => `The user denied this operation.
+${quickSettings?.[KebabButtonOptions.SendNextStepsReminderWithReject.value] ? nextStepsInstructions : ""}`,
 
 	toolDeniedWithFeedback: (feedback?: string) =>
 		`The user denied this operation and provided the following feedback:\n<feedback>\n${feedback}\n</feedback>`,
@@ -130,6 +130,7 @@ I have completed the task...
 Always adhere to this format for all tool uses to ensure proper parsing and execution.`
 
 const nextStepsInstructions = `
+
 # Next Steps
 
 If you have completed the user's task, use the attempt_completion tool. 
