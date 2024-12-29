@@ -50,10 +50,21 @@ export class ManualHandler implements ApiHandler {
 			text: response,
 		}
 
+		const inputTextLength = systemPrompt.length + messages.reduce((acc, msg) => {
+			if (Array.isArray(msg.content)) {
+				return acc + msg.content
+					.filter(block => block.type === 'text')
+					.reduce((sum, block) => sum + (block as Anthropic.Messages.TextBlockParam).text.length, 0);
+			}
+			return acc + (msg.content as string).length;
+		}, 0);
+
+		const outputTextLength = response.length;
+
 		yield {
 			type: "usage",
-			inputTokens: 0,
-			outputTokens: 0,
+			inputTokens: Math.ceil(inputTextLength / 4),
+			outputTokens: Math.ceil(outputTextLength / 4),
 		}
 	}
 
