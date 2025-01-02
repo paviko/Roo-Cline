@@ -8,7 +8,7 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
-import { ApiHandler, buildApiHandler } from "../api"
+import { ApiHandler, SingleCompletionHandler, buildApiHandler } from "../api"
 import { ApiStream } from "../api/transform/stream"
 import { DiffViewProvider } from "../integrations/editor/DiffViewProvider"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
@@ -49,6 +49,7 @@ import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { detectCodeOmission } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
+import { OpenRouterHandler } from "../api/providers/openrouter"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -71,7 +72,7 @@ export class Cline {
 
 	quickSettings?: Record<string, boolean>
 
-	apiConversationHistory: Anthropic.MessageParam[] = []
+	apiConversationHistory: (Anthropic.MessageParam & { ts?: number })[] = []
 	clineMessages: ClineMessage[] = []
 	private askResponse?: ClineAskResponse
 	private askResponseText?: string
@@ -154,11 +155,12 @@ export class Cline {
 	}
 
 	private async addToApiConversationHistory(message: Anthropic.MessageParam) {
-		this.apiConversationHistory.push(message)
+		const messageWithTs = { ...message, ts: Date.now() }
+		this.apiConversationHistory.push(messageWithTs)
 		await this.saveApiConversationHistory()
 	}
 
-	private async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]) {
+	async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]) {
 		this.apiConversationHistory = newHistory
 		await this.saveApiConversationHistory()
 	}
@@ -194,7 +196,7 @@ export class Cline {
 		await this.saveClineMessages()
 	}
 
-	private async overwriteClineMessages(newMessages: ClineMessage[]) {
+	public async overwriteClineMessages(newMessages: ClineMessage[]) {
 		this.clineMessages = newMessages
 		await this.saveClineMessages()
 	}
@@ -449,6 +451,11 @@ export class Cline {
 		await this.overwriteClineMessages(modifiedClineMessages)
 		this.clineMessages = await this.getSavedClineMessages()
 
+		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
+
+		let existingApiConversationHistory: Anthropic.Messages.MessageParam[] =
+		await this.getSavedApiConversationHistory()
+
 		// Now present the cline messages to the user and ask if they want to resume
 
 		const lastClineMessage = this.clineMessages
@@ -481,11 +488,6 @@ export class Cline {
 			responseText = text
 			responseImages = images
 		}
-
-		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
-
-		let existingApiConversationHistory: Anthropic.Messages.MessageParam[] =
-			await this.getSavedApiConversationHistory()
 
 		// v2.0 xml tags refactor caveat: since we don't use tools anymore, we need to replace all tool use blocks with a text block since the API disallows conversations with tool uses and no tool schema
 		const conversationWithoutToolBlocks = existingApiConversationHistory.map((message) => {
@@ -709,15 +711,31 @@ export class Cline {
 			}
 		}
 
-		let result = ""
+		let lines: string[] = []
 		process.on("line", (line) => {
-			result += line + "\n"
+			lines.push(line)
 			if (!didContinue) {
 				sendCommandOutput(line)
 			} else {
 				this.say("command_output", line)
 			}
 		})
+
+		const getFormattedOutput = async () => {
+			const { terminalOutputLineLimit } = await this.providerRef.deref()?.getState() ?? {}
+			const limit = terminalOutputLineLimit ?? 0
+
+			if (limit > 0 && lines.length > limit) {
+				const beforeLimit = Math.floor(limit * 0.2) // 20% of lines before
+				const afterLimit = limit - beforeLimit // remaining 80% after
+				return [
+					...lines.slice(0, beforeLimit),
+					`\n[...${lines.length - limit} lines omitted...]\n`,
+					...lines.slice(-afterLimit)
+				].join('\n')
+			}
+			return lines.join('\n')
+		}
 
 		let completed = false
 		process.once("completed", () => {
@@ -737,7 +755,8 @@ export class Cline {
 		// grouping command_output messages despite any gaps anyways)
 		await delay(50)
 
-		result = result.trim()
+		const output = await getFormattedOutput()
+		const result = output.trim()
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images)
@@ -796,8 +815,8 @@ export class Cline {
 		// Add current timestamp
 		Cline.requestTimestamps.push(now)
 
-		const { browserLargeViewport, preferredLanguage } = await this.providerRef.deref()?.getState() ?? {}
-		const systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, mcpHub, this.diffStrategy, browserLargeViewport, this.quickSettings) + await addCustomInstructions(this.customInstructions ?? '', cwd, preferredLanguage)
+		const { browserViewportSize, preferredLanguage } = await this.providerRef.deref()?.getState() ?? {}
+		const systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false, mcpHub, this.diffStrategy, browserViewportSize) + await addCustomInstructions(this.customInstructions ?? '', cwd, preferredLanguage)
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
@@ -816,7 +835,9 @@ export class Cline {
 			}
 		}
 
-		const stream = this.api.createMessage(systemPrompt, this.apiConversationHistory)
+		// Convert to Anthropic.MessageParam by spreading only the API-required properties
+		const cleanConversationHistory = this.apiConversationHistory.map(({ role, content }) => ({ role, content }))
+		const stream = this.api.createMessage(systemPrompt, cleanConversationHistory)
 		const iterator = stream[Symbol.asyncIterator]()
 
 		try {

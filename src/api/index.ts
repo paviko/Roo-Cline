@@ -9,9 +9,14 @@ import { OllamaHandler } from "./providers/ollama"
 import { LmStudioHandler } from "./providers/lmstudio"
 import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
+import { DeepSeekHandler } from "./providers/deepseek"
 import { ApiStream } from "./transform/stream"
 import { ManualHandler } from "./providers/manual"
 import * as vscode from 'vscode'
+
+export interface SingleCompletionHandler {
+	completePrompt(prompt: string): Promise<string>
+}
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -39,6 +44,8 @@ export function buildApiHandler(configuration: ApiConfiguration, extensionUri: v
 			return new GeminiHandler(options)
 		case "openai-native":
 			return new OpenAiNativeHandler(options)
+		case "deepseek":
+			return new DeepSeekHandler(options)
 		case "manual":
 			return new ManualHandler(options, extensionUri)
 		default:

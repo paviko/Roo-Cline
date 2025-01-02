@@ -23,6 +23,7 @@ import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { playSound, setSoundEnabled, setSoundVolume } from "../../utils/sound"
+import { enhancePrompt } from "../../utils/enhance-prompt"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -39,6 +40,7 @@ type SecretKey =
 	| "openAiApiKey"
 	| "geminiApiKey"
 	| "openAiNativeApiKey"
+	| "deepSeekApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -61,6 +63,7 @@ type GlobalStateKey =
 	| "lmStudioBaseUrl"
 	| "anthropicBaseUrl"
 	| "azureApiVersion"
+	| "includeStreamOptions"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
 	| "openRouterUseMiddleOutTransform"
@@ -69,9 +72,12 @@ type GlobalStateKey =
 	| "soundVolume"
 	| "diffEnabled"
 	| "alwaysAllowMcp"
-	| "browserLargeViewport"
+	| "browserViewportSize"
+	| "screenshotQuality"
 	| "fuzzyMatchThreshold"
 	| "preferredLanguage" // Language setting for Cline's communication
+	| "writeDelayMs"
+	| "terminalOutputLineLimit"
 	| "requestsPerMinuteLimit"
 	| "quickSettings"
 
@@ -423,6 +429,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								geminiApiKey,
 								openAiNativeApiKey,
 								azureApiVersion,
+								includeStreamOptions,
 								openRouterModelId,
 								openRouterModelInfo,
 								openRouterUseMiddleOutTransform,
@@ -449,7 +456,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
 							await this.storeSecret("geminiApiKey", geminiApiKey)
 							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
+							await this.storeSecret("deepSeekApiKey", message.apiConfiguration.deepSeekApiKey)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
+							await this.updateGlobalState("includeStreamOptions", includeStreamOptions)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
 							await this.updateGlobalState("openRouterUseMiddleOutTransform", openRouterUseMiddleOutTransform)
@@ -527,6 +536,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "refreshOpenRouterModels":
 						await this.refreshOpenRouterModels()
+						break
+					case "refreshOpenAiModels":
+						if (message?.values?.baseUrl && message?.values?.apiKey) {
+							const openAiModels = await this.getOpenAiModels(message?.values?.baseUrl, message?.values?.apiKey)
+							this.postMessageToWebview({ type: "openAiModels", openAiModels })
+						}
 						break
 					case "openImage":
 						openImage(message.text!)
@@ -623,9 +638,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("diffEnabled", diffEnabled)
 						await this.postStateToWebview()
 						break
-					case "browserLargeViewport":
-						const browserLargeViewport = message.bool ?? false
-						await this.updateGlobalState("browserLargeViewport", browserLargeViewport)
+					case "browserViewportSize":
+						const browserViewportSize = message.text ?? "900x600"
+						await this.updateGlobalState("browserViewportSize", browserViewportSize)
 						await this.postStateToWebview()
 						break
 					case "fuzzyMatchThreshold":
@@ -635,6 +650,60 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "preferredLanguage":
 						await this.updateGlobalState("preferredLanguage", message.text)
 						await this.postStateToWebview()
+						break
+					case "writeDelayMs":
+						await this.updateGlobalState("writeDelayMs", message.value)
+						await this.postStateToWebview()
+						break
+					case "terminalOutputLineLimit":
+						await this.updateGlobalState("terminalOutputLineLimit", message.value)
+						await this.postStateToWebview()
+						break
+					case "deleteMessage": {
+						const answer = await vscode.window.showInformationMessage(
+							"Are you sure you want to delete this message and all subsequent messages?",
+							{ modal: true },
+							"Yes",
+							"No"
+						)
+						if (answer === "Yes" && this.cline && typeof message.value === 'number' && message.value) {
+							const timeCutoff = message.value - 1000; // 1 second buffer before the message to delete
+							const messageIndex = this.cline.clineMessages.findIndex(msg =>  msg.ts && msg.ts >= timeCutoff)
+							const apiConversationHistoryIndex = this.cline.apiConversationHistory.findIndex(msg => msg.ts && msg.ts >= timeCutoff)
+							if (messageIndex !== -1) {
+								const { historyItem } = await this.getTaskWithId(this.cline.taskId)
+								await this.cline.overwriteClineMessages(this.cline.clineMessages.slice(0, messageIndex))
+								if (apiConversationHistoryIndex !== -1) {
+									await this.cline.overwriteApiConversationHistory(this.cline.apiConversationHistory.slice(0, apiConversationHistoryIndex))
+								}
+								await this.initClineWithHistoryItem(historyItem)
+							}
+						}
+						break
+					}
+					case "screenshotQuality":
+						await this.updateGlobalState("screenshotQuality", message.value)
+						await this.postStateToWebview()
+						break
+					case "enhancePrompt":
+						if (message.text) {
+							try {
+								const { apiConfiguration } = await this.getState()
+								const enhanceConfig = {
+									...apiConfiguration,
+									apiProvider: "openrouter" as const,
+									openRouterModelId: "gpt-4o",
+								}
+								const enhancedPrompt = await enhancePrompt(enhanceConfig, message.text, this.context.extensionUri)
+								await this.postMessageToWebview({
+									type: "enhancedPrompt",
+									text: enhancedPrompt
+								})
+							} catch (error) {
+								console.error("Error enhancing prompt:", error)
+								vscode.window.showErrorMessage("Failed to enhance prompt")
+							}
+						}
 						break
 					case "requestsPerMinuteLimit":
 						await this.updateGlobalState("requestsPerMinuteLimit", message.requestsPerMinuteLimit)
@@ -704,6 +773,32 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				return []
 			}
 			const response = await axios.get(`${baseUrl}/v1/models`)
+			const modelsArray = response.data?.data?.map((model: any) => model.id) || []
+			const models = [...new Set<string>(modelsArray)]
+			return models
+		} catch (error) {
+			return []
+		}
+	}
+
+	// OpenAi
+
+	async getOpenAiModels(baseUrl?: string, apiKey?: string) {
+		try {
+			if (!baseUrl) {
+				return []
+			}
+
+			if (!URL.canParse(baseUrl)) {
+				return []
+			}
+
+			const config: Record<string, any> = {}
+			if (apiKey) {
+				config["headers"] = { Authorization: `Bearer ${apiKey}` }
+			}
+
+			const response = await axios.get(`${baseUrl}/models`, config)
 			const modelsArray = response.data?.data?.map((model: any) => model.id) || []
 			const models = [...new Set<string>(modelsArray)]
 			return models
@@ -968,8 +1063,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			diffEnabled,
 			taskHistory,
 			soundVolume,
-			browserLargeViewport,
+			browserViewportSize,
+			screenshotQuality,
 			preferredLanguage,
+			writeDelayMs,
+			terminalOutputLineLimit,
+			fuzzyMatchThreshold,
 		} = await this.getState()
 		
 		const allowedCommands = vscode.workspace
@@ -995,8 +1094,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			allowedCommands,
 			soundVolume: soundVolume ?? 0.5,
-			browserLargeViewport: browserLargeViewport ?? false,
+			browserViewportSize: browserViewportSize ?? "900x600",
+			screenshotQuality: screenshotQuality ?? 75,
 			preferredLanguage: preferredLanguage ?? 'English',
+			writeDelayMs: writeDelayMs ?? 1000,
+			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
+			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
 		}
 	}
 
@@ -1074,7 +1177,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			anthropicBaseUrl,
 			geminiApiKey,
 			openAiNativeApiKey,
+			deepSeekApiKey,
 			azureApiVersion,
+			includeStreamOptions,
 			openRouterModelId,
 			openRouterModelInfo,
 			openRouterUseMiddleOutTransform,
@@ -1090,9 +1195,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundEnabled,
 			diffEnabled,
 			soundVolume,
-			browserLargeViewport,
+			browserViewportSize,
 			fuzzyMatchThreshold,
 			preferredLanguage,
+			writeDelayMs,
+			screenshotQuality,
+			terminalOutputLineLimit,
 			requestsPerMinuteLimit,
 			quickSettings,
 		] = await Promise.all([
@@ -1117,7 +1225,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
 			this.getSecret("geminiApiKey") as Promise<string | undefined>,
 			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
+			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
+			this.getGlobalState("includeStreamOptions") as Promise<boolean | undefined>,
 			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("openRouterUseMiddleOutTransform") as Promise<boolean | undefined>,
@@ -1133,9 +1243,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("diffEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("soundVolume") as Promise<number | undefined>,
-			this.getGlobalState("browserLargeViewport") as Promise<boolean | undefined>,
+			this.getGlobalState("browserViewportSize") as Promise<string | undefined>,
 			this.getGlobalState("fuzzyMatchThreshold") as Promise<number | undefined>,
 			this.getGlobalState("preferredLanguage") as Promise<string | undefined>,
+			this.getGlobalState("writeDelayMs") as Promise<number | undefined>,
+			this.getGlobalState("screenshotQuality") as Promise<number | undefined>,
+			this.getGlobalState("terminalOutputLineLimit") as Promise<number | undefined>,
 			this.getGlobalState("requestsPerMinuteLimit") as Promise<any | undefined>,
 			this.getGlobalState("quickSettings") as Promise<Record<string, boolean> | undefined>,
 		])
@@ -1177,7 +1290,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				anthropicBaseUrl,
 				geminiApiKey,
 				openAiNativeApiKey,
+				deepSeekApiKey,
 				azureApiVersion,
+				includeStreamOptions,
 				openRouterModelId,
 				openRouterModelInfo,
 				openRouterUseMiddleOutTransform,
@@ -1195,8 +1310,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundEnabled: soundEnabled ?? false,
 			diffEnabled: diffEnabled ?? true,
 			soundVolume,
-			browserLargeViewport: browserLargeViewport ?? false,
+			browserViewportSize: browserViewportSize ?? "900x600",
+			screenshotQuality: screenshotQuality ?? 75,
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
+			writeDelayMs: writeDelayMs ?? 1000,
+			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			preferredLanguage: preferredLanguage ?? (() => {
 				// Get VSCode's locale setting
 				const vscodeLang = vscode.env.language;
@@ -1300,6 +1418,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"openAiApiKey",
 			"geminiApiKey",
 			"openAiNativeApiKey",
+			"deepSeekApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)

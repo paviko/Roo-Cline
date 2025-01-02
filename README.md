@@ -19,16 +19,22 @@ A fork of Cline, an autonomous coding agent, with some additional experimental f
 ## Experimental Features
 
 - Drag and drop images into chats
+- Delete messages from chats
+- "Enhance prompt" button (OpenRouter models only for now)
 - Sound effects for feedback
-- Option to use a larger 1280x800 browser
+- Option to use browsers of different sizes and adjust screenshot quality
 - Quick prompt copying from history
 - OpenRouter compression support
 - Includes current time in the system prompt
 - Uses a file system watcher to more reliably watch for file system changes
 - Language selection for Cline's communication (English, Japanese, Spanish, French, German, and more)
+- Support for DeepSeek V3
 - Support for Meta 3, 3.1, and 3.2 models via AWS Bedrock
+- Support for listing models from OpenAI-compatible providers
 - Per-tool MCP auto-approval
 - Enable/disable MCP servers
+- Configurable delay after auto-writes to allow diagnostics to detect potential problems
+- Control the number of terminal output lines to pass to the model when executing commands
 - Runs alongside the original Cline
 
 ## Disclaimer

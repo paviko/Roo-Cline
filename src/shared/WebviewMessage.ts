@@ -28,19 +28,27 @@ export interface WebviewMessage {
 		| "openMention"
 		| "cancelTask"
 		| "refreshOpenRouterModels"
+		| "refreshOpenAiModels"
 		| "alwaysAllowBrowser"
 		| "alwaysAllowMcp"
 		| "playSound"
 		| "soundEnabled"
 		| "soundVolume"
 		| "diffEnabled"
-		| "browserLargeViewport"
+		| "browserViewportSize"
+		| "screenshotQuality"
 		| "openMcpSettings"
 		| "restartMcpServer"
 		| "toggleToolAlwaysAllow"
 		| "toggleMcpServer"
 		| "fuzzyMatchThreshold"
 		| "preferredLanguage"
+		| "writeDelayMs"
+		| "enhancePrompt"
+		| "enhancedPrompt"
+		| "draggedImages"
+		| "deleteMessage"
+		| "terminalOutputLineLimit"
 		| "requestsPerMinuteLimit"
 	text?: string
 	disabled?: boolean
@@ -51,10 +59,11 @@ export interface WebviewMessage {
 	value?: number
 	commands?: string[]
 	audioType?: AudioType
-	// For toggleToolAutoApprove
 	serverName?: string
 	toolName?: string
 	alwaysAllow?: boolean
+	dataUrls?: string[]
+	values?: Record<string, any>
 	requestsPerMinuteLimit?: Record<string, number>
 }
 

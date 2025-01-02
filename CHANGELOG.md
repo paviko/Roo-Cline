@@ -1,5 +1,42 @@
 # Roo Cline Changelog
 
+## [2.2.38]
+
+-   Add a setting to control the number of terminal output lines to pass to the model when executing commands
+
+## [2.2.36 - 2.2.37]
+
+-   Add a button to delete user messages
+
+## [2.2.35]
+
+-   Allow selection of multiple browser viewport sizes and adjusting screenshot quality
+
+## [2.2.34]
+
+-   Add the DeepSeek provider
+
+## [2.2.33]
+
+-   "Enhance prompt" button (OpenRouter models only for now)
+-   Support listing models for OpenAI compatible providers (thanks @samhvw8!)
+
+## [2.2.32]
+
+-   More efficient workspace tracker
+
+## [2.2.31]
+
+-   Improved logic for auto-approving chained commands
+
+## [2.2.30]
+
+-   Fix bug with auto-approving commands
+
+## [2.2.29]
+
+-   Add configurable delay after auto-writes to allow diagnostics to catch up
+
 ## [2.2.28]
 
 -   Use createFileSystemWatcher to more reliably update list of files to @-mention
