@@ -7,6 +7,7 @@ export type AudioType = "notification" | "celebration" | "progress_loop"
 
 export interface WebviewMessage {
 	type:
+		| "requestsPerMinuteLimit"
 		| "apiConfiguration"
 		| "currentApiConfigName"
 		| "upsertApiConfiguration"
@@ -80,6 +81,7 @@ export interface WebviewMessage {
 		| "setopenAiCustomModelInfo"
 		| "openCustomModesSettings"
 	text?: string
+	requestsPerMinuteLimit?: Record<string, number>
 	disabled?: boolean
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration

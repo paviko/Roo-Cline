@@ -18,6 +18,7 @@ import { combineCommandSequences } from "../../../../src/shared/combineCommandSe
 import { getApiMetrics } from "../../../../src/shared/getApiMetrics"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
+import { insertMention } from "../../utils/context-mentions"
 import HistoryPreview from "../history/HistoryPreview"
 import { normalizeApiConfiguration } from "../settings/ApiOptions"
 import Announcement from "./Announcement"
@@ -40,6 +41,7 @@ export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const {
+		cwd,
 		version,
 		clineMessages: messages,
 		taskHistory,
@@ -413,6 +415,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								textAreaRef.current?.focus()
 							}
 							break
+						case "addFilesToContext":
+							if (message.filePaths && message.filePaths.length > 0) {
+								appendFilesToContext(message.filePaths)
+							}
+							break
 					}
 					break
 				case "selectedImages":
@@ -445,7 +452,41 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			handleSendMessage,
 			handlePrimaryButtonClick,
 			handleSecondaryButtonClick,
+			cwd,
 		],
+	)
+
+	const appendFilesToContext = useCallback(
+		(files: string[]) => {
+			let newCursorPos = 0
+			setInputValue((prev) => {
+				let newValue = prev
+				let cursorPos = textAreaRef.current?.selectionStart || prev.length
+				files.forEach((file) => {
+					// First, insert the @ character at the cursor position
+					newValue = newValue.slice(0, cursorPos) + "@" + newValue.slice(cursorPos)
+					cursorPos += 1 // Move cursor after the @ symbol
+
+					// Construct a relative path by:
+					// 1. Removing the current working directory (cwd) from the file path
+					// 2. Ensuring the path starts with a forward slash
+					// 3. Removing any leading slashes or backslashes
+					const relativePath = file.replace(cwd, "")
+					const result = insertMention(newValue, cursorPos, relativePath)
+					newValue = result.newValue
+					cursorPos = result.mentionIndex + relativePath.length + 2 // +2 for '@' and space
+				})
+				newCursorPos = cursorPos
+				return newValue
+			})
+			setTimeout(() => {
+				if (textAreaRef.current) {
+					textAreaRef.current.focus()
+					textAreaRef.current.setSelectionRange(newCursorPos, newCursorPos)
+				}
+			}, 0)
+		},
+		[textAreaRef, setInputValue, cwd],
 	)
 
 	useEvent("message", handleMessage)
@@ -942,17 +983,17 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				</div>
 			)}
 
-			{/* 
+			{/*
 			// Flex layout explanation:
 			// 1. Content div above uses flex: "1 1 0" to:
-			//    - Grow to fill available space (flex-grow: 1) 
+			//    - Grow to fill available space (flex-grow: 1)
 			//    - Shrink when AutoApproveMenu needs space (flex-shrink: 1)
 			//    - Start from zero size (flex-basis: 0) to ensure proper distribution
 			//    minHeight: 0 allows it to shrink below its content height
 			//
 			// 2. AutoApproveMenu uses flex: "0 1 auto" to:
 			//    - Not grow beyond its content (flex-grow: 0)
-			//    - Shrink when viewport is small (flex-shrink: 1) 
+			//    - Shrink when viewport is small (flex-shrink: 1)
 			//    - Use its content size as basis (flex-basis: auto)
 			//    This ensures it takes its natural height when there's space
 			//    but becomes scrollable when the viewport is too small

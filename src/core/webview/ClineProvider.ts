@@ -63,6 +63,7 @@ type SecretKey =
 	| "deepSeekApiKey"
 	| "mistralApiKey"
 type GlobalStateKey =
+	| "requestsPerMinuteLimit"
 	| "apiProvider"
 	| "apiModelId"
 	| "glamaModelId"
@@ -558,6 +559,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
 						await this.initClineWithTask(message.text, message.images)
 						break
+					case "requestsPerMinuteLimit":
+						await this.updateGlobalState("requestsPerMinuteLimit", message.requestsPerMinuteLimit)
+						await this.postStateToWebview()
+						break
 					case "apiConfiguration":
 						if (message.apiConfiguration) {
 							await this.updateApiConfiguration(message.apiConfiguration)
@@ -980,6 +985,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 										},
 										customSupportPrompts,
 									),
+									this.context.extensionUri,
 								)
 
 								await this.postMessageToWebview({
@@ -1262,6 +1268,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 
 		const {
+			requestsPerMinuteLimit,
 			apiProvider,
 			apiModelId,
 			apiKey,
@@ -1300,6 +1307,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			vsCodeLmModelSelector,
 			mistralApiKey,
 		} = apiConfiguration
+		await this.updateGlobalState("requestsPerMinuteLimit", requestsPerMinuteLimit)
 		await this.updateGlobalState("apiProvider", apiProvider)
 		await this.updateGlobalState("apiModelId", apiModelId)
 		await this.storeSecret("apiKey", apiKey)
@@ -1338,7 +1346,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
 		await this.storeSecret("mistralApiKey", mistralApiKey)
 		if (this.cline) {
-			this.cline.api = buildApiHandler(apiConfiguration)
+			this.cline.api = buildApiHandler(apiConfiguration, this.context.extensionUri)
 		}
 	}
 
@@ -1465,7 +1473,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("openRouterApiKey", apiKey)
 		await this.postStateToWebview()
 		if (this.cline) {
-			this.cline.api = buildApiHandler({ apiProvider: openrouter, openRouterApiKey: apiKey })
+			this.cline.api = buildApiHandler(
+				{ apiProvider: openrouter, openRouterApiKey: apiKey },
+				this.context.extensionUri,
+			)
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
 	}
@@ -1495,10 +1506,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("glamaApiKey", apiKey)
 		await this.postStateToWebview()
 		if (this.cline) {
-			this.cline.api = buildApiHandler({
-				apiProvider: glama,
-				glamaApiKey: apiKey,
-			})
+			this.cline.api = buildApiHandler(
+				{
+					apiProvider: glama,
+					glamaApiKey: apiKey,
+				},
+				this.context.extensionUri,
+			)
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
 	}
@@ -1923,6 +1937,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async getState() {
 		const [
+			requestsPerMinuteLimit,
 			storedApiProvider,
 			apiModelId,
 			apiKey,
@@ -1992,6 +2007,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalEnabled,
 			customModes,
 		] = await Promise.all([
+			this.getGlobalState("requestsPerMinuteLimit") as Promise<any | undefined>,
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
 			this.getSecret("apiKey") as Promise<string | undefined>,
@@ -2078,6 +2094,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		return {
 			apiConfiguration: {
+				requestsPerMinuteLimit,
 				apiProvider,
 				apiModelId,
 				apiKey,

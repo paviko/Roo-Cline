@@ -7,6 +7,7 @@ import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { ACTION_NAMES, CodeActionProvider } from "./core/CodeActionProvider"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
+import * as path from "path"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -110,6 +111,121 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("roo-cline.historyButtonClicked", () => {
 			sidebarProvider.postMessageToWebview({ type: "action", action: "historyButtonClicked" })
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("roo-cline.addToContext", async (uri: vscode.Uri) => {
+			const visibleProvider = ClineProvider.getVisibleInstance()
+			if (!visibleProvider) {
+				return
+			}
+
+			if (uri) {
+				const filePath = uri.fsPath
+				const isDirectory = await vscode.workspace.fs.stat(uri).then(
+					(stat) => stat.type === vscode.FileType.Directory,
+					() => false,
+				)
+
+				const adjustedPath = isDirectory ? `${filePath}${path.sep}` : filePath
+				await visibleProvider.postMessageToWebview({
+					type: "action",
+					action: "addFilesToContext",
+					filePaths: [adjustedPath],
+				})
+			}
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("roo-cline.addAllOpenToContext", async () => {
+			const visibleProvider = ClineProvider.getVisibleInstance()
+			if (!visibleProvider) {
+				return
+			}
+
+			const openFilePaths = vscode.window.tabGroups.all.flatMap(({ tabs }) =>
+				tabs
+					.map((tab) => {
+						if (tab.input instanceof vscode.TabInputText || tab.input instanceof vscode.TabInputNotebook) {
+							return tab.input.uri.path
+						}
+
+						if (
+							tab.input instanceof vscode.TabInputTextDiff ||
+							tab.input instanceof vscode.TabInputNotebookDiff
+						) {
+							return tab.input.original.path // also can use modified
+						}
+
+						// others tabs e.g. Settings or webviews don't have URI
+						return null!
+					})
+					.filter(Boolean),
+			)
+
+			if (openFilePaths.length > 0) {
+				await visibleProvider.postMessageToWebview({
+					type: "action",
+					action: "addFilesToContext",
+					filePaths: openFilePaths,
+				})
+			}
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("roo-cline.addActiveToContext", async () => {
+			const visibleProvider = ClineProvider.getVisibleInstance()
+			if (!visibleProvider) {
+				return
+			}
+
+			const openFilePaths = vscode.window.visibleTextEditors
+				.map((editor) => editor.document.uri.fsPath)
+				.filter(Boolean)
+
+			if (openFilePaths.length > 0) {
+				await visibleProvider.postMessageToWebview({
+					type: "action",
+					action: "addFilesToContext",
+					filePaths: openFilePaths,
+				})
+			}
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("roo-cline.kebabButtonClicked", async () => {
+			const visibleProvider = ClineProvider.getVisibleInstance()
+			if (!visibleProvider) {
+				return
+			}
+
+			const checkboxItems: vscode.QuickPickItem[] = [
+				{ label: "Option 1", picked: false },
+				{ label: "Option 2", picked: true },
+				{ label: "Option 3", picked: false },
+			]
+
+			const selectedItems = await vscode.window.showQuickPick(checkboxItems, {
+				canPickMany: true,
+				placeHolder: "Select options",
+			})
+
+			outputChannel.appendLine("Selected items logged to console")
+			if (selectedItems) {
+				console.log("Selected items:", selectedItems)
+				outputChannel.appendLine(`Selected items: ${selectedItems.map((item) => item.label).join(", ")}`)
+
+				// Send the value of options (checked/unchecked) using visibleProvider.postMessageToWebview()
+				// await visibleProvider.postMessageToWebview({
+				// 	type: "action",
+				// 	action: "kebabButtonClicked",
+				// 	options: selectedItems.map(item => ({ label: item.label, checked: item.checked })),
+				// });
+			}
 		}),
 	)
 

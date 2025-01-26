@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 
 export type ApiProvider =
+	| "manual"
 	| "anthropic"
 	| "glama"
 	| "openrouter"
@@ -48,6 +49,7 @@ export interface ApiHandlerOptions {
 	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
+	requestsPerMinuteLimit?: Record<string, number>
 	openAiNativeApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
@@ -77,6 +79,7 @@ export interface ModelInfo {
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
+	requestsPerMinuteLimit?: number // Added for rate limiting
 }
 
 // Anthropic
@@ -434,6 +437,7 @@ export const geminiModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+		requestsPerMinuteLimit: 10,
 	},
 	"gemini-2.0-flash-thinking-exp-1219": {
 		maxTokens: 8192,
@@ -442,6 +446,7 @@ export const geminiModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+		requestsPerMinuteLimit: 10,
 	},
 	"gemini-2.0-flash-exp": {
 		maxTokens: 8192,
@@ -450,6 +455,7 @@ export const geminiModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+		requestsPerMinuteLimit: 10,
 	},
 	"gemini-1.5-flash-002": {
 		maxTokens: 8192,
@@ -458,6 +464,7 @@ export const geminiModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+		requestsPerMinuteLimit: 10, // Default limit
 	},
 	"gemini-1.5-flash-exp-0827": {
 		maxTokens: 8192,
@@ -466,6 +473,7 @@ export const geminiModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+		requestsPerMinuteLimit: 10,
 	},
 	"gemini-1.5-flash-8b-exp-0827": {
 		maxTokens: 8192,
@@ -474,6 +482,7 @@ export const geminiModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+		requestsPerMinuteLimit: 10,
 	},
 	"gemini-1.5-pro-002": {
 		maxTokens: 8192,
@@ -482,6 +491,7 @@ export const geminiModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+		requestsPerMinuteLimit: 2,
 	},
 	"gemini-1.5-pro-exp-0827": {
 		maxTokens: 8192,
@@ -490,6 +500,7 @@ export const geminiModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+		requestsPerMinuteLimit: 2,
 	},
 	"gemini-exp-1206": {
 		maxTokens: 8192,
@@ -498,6 +509,7 @@ export const geminiModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+		requestsPerMinuteLimit: 2,
 	},
 } as const satisfies Record<string, ModelInfo>
 

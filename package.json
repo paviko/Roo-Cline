@@ -68,8 +68,25 @@
 		},
 		"commands": [
 			{
+				"command": "roo-cline.addToContext",
+				"title": "Roo Code: Add to Context",
+				"category": "Roo Code"
+			},
+			{
+				"command": "roo-cline.addAllOpenToContext",
+				"title": "Roo Code: Add All Open Files to Context",
+				"category": "Roo Code",
+				"icon": "$(files)"
+			},
+			{
+				"command": "roo-cline.addActiveToContext",
+				"title": "Roo Code: Add Active File to Context",
+				"category": "Roo Code",
+				"icon": "$(file)"
+			},
+			{
 				"command": "roo-cline.plusButtonClicked",
-				"title": "New Task",
+				"title": "Roo Code: New Task",
 				"icon": "$(add)"
 			},
 			{
@@ -119,7 +136,24 @@
 			}
 		],
 		"menus": {
+			"editor/title/context": [
+				{
+					"command": "roo-cline.addToContext",
+					"group": "cline@1"
+				}
+			],
+			"explorer/context": [
+				{
+					"command": "roo-cline.addToContext",
+					"group": "Roo Code@1",
+					"when": "resourceLangId"
+				}
+			],
 			"editor/context": [
+				{
+					"command": "roo-cline.addToContext",
+					"group": "Roo Code@4"
+				},
 				{
 					"command": "roo-cline.explainCode",
 					"when": "editorHasSelection",
@@ -165,6 +199,16 @@
 				{
 					"command": "roo-cline.settingsButtonClicked",
 					"group": "navigation@6",
+					"when": "view == roo-cline.SidebarProvider"
+				},
+				{
+					"command": "roo-cline.addAllOpenToContext",
+					"group": "navigation@7",
+					"when": "view == roo-cline.SidebarProvider"
+				},
+				{
+					"command": "roo-cline.addActiveToContext",
+					"group": "navigation@8",
 					"when": "view == roo-cline.SidebarProvider"
 				}
 			]
@@ -214,6 +258,7 @@
 		"install:all": "npm install && cd webview-ui && npm install",
 		"lint": "eslint src --ext ts && npm run lint --prefix webview-ui",
 		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
+		"package:debug": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js",
 		"pretest": "npm run compile-tests && npm run compile && npm run lint",
 		"start:webview": "cd webview-ui && npm run start",
 		"test": "jest && npm run test:webview",
@@ -223,7 +268,7 @@
 		"publish:marketplace": "vsce publish && ovsx publish",
 		"publish": "npm run build && changeset publish && npm install --package-lock-only",
 		"version-packages": "changeset version && npm install --package-lock-only",
-		"vscode:prepublish": "npm run package",
+		"vscode:prepublish": "npm run package:debug",
 		"vsix": "mkdir -p bin && npx vsce package --out bin",
 		"watch": "npm-run-all -p watch:*",
 		"watch:esbuild": "node esbuild.js --watch",

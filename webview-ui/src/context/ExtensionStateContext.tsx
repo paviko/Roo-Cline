@@ -18,6 +18,7 @@ import { Mode, CustomModePrompts, defaultModeSlug, defaultPrompts, ModeConfig } 
 import { CustomSupportPrompts } from "../../../src/shared/support-prompt"
 
 export interface ExtensionStateContextType extends ExtensionState {
+	cwd: string
 	didHydrateState: boolean
 	showWelcome: boolean
 	theme: any
@@ -116,6 +117,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
+	const [cwd, setCwd] = useState<string>("")
+	const [noErrorsWatch, setNoErrorsWatch] = useState<boolean>(false)
 
 	const setListApiConfigMeta = useCallback(
 		(value: ApiConfigMeta[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })),
@@ -171,6 +174,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 				}
 				case "workspaceUpdated": {
 					setFilePaths(message.filePaths ?? [])
+					setCwd(message.cwd ?? "")
 					break
 				}
 				case "partialMessage": {
@@ -228,6 +232,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	}, [])
 
 	const contextValue: ExtensionStateContextType = {
+		cwd,
 		...state,
 		didHydrateState,
 		showWelcome,

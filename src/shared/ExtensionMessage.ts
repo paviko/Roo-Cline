@@ -16,6 +16,7 @@ export interface LanguageModelChatSelector {
 
 // webview will hold state
 export interface ExtensionMessage {
+	cwd?: string
 	type:
 		| "action"
 		| "state"
@@ -49,6 +50,7 @@ export interface ExtensionMessage {
 		| "historyButtonClicked"
 		| "promptsButtonClicked"
 		| "didBecomeVisible"
+		| "addFilesToContext"
 	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	state?: ExtensionState
 	images?: string[]
@@ -75,6 +77,7 @@ export interface ApiConfigMeta {
 }
 
 export interface ExtensionState {
+	requestsPerMinuteLimit?: Record<string, number>
 	version: string
 	clineMessages: ClineMessage[]
 	taskHistory: HistoryItem[]

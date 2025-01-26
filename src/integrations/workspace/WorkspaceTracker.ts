@@ -60,6 +60,7 @@ class WorkspaceTracker {
 				return
 			}
 			this.providerRef.deref()?.postMessageToWebview({
+				cwd: cwd,
 				type: "workspaceUpdated",
 				filePaths: Array.from(this.filePaths).map((file) => {
 					const relativePath = path.relative(cwd, file).toPosix()

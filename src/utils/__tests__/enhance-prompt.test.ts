@@ -2,6 +2,7 @@ import { singleCompletionHandler } from "../single-completion-handler"
 import { ApiConfiguration } from "../../shared/api"
 import { buildApiHandler, SingleCompletionHandler } from "../../api"
 import { supportPrompt } from "../../shared/support-prompt"
+import * as vscode from "vscode"
 
 // Mock the API handler
 jest.mock("../../api", () => ({
@@ -34,10 +35,10 @@ describe("enhancePrompt", () => {
 	})
 
 	it("enhances prompt using default enhancement prompt when no custom prompt provided", async () => {
-		const result = await singleCompletionHandler(mockApiConfig, "Test prompt")
+		const result = await singleCompletionHandler(mockApiConfig, "Test prompt", {} as vscode.Uri)
 
 		expect(result).toBe("Enhanced prompt")
-		const handler = buildApiHandler(mockApiConfig)
+		const handler = buildApiHandler(mockApiConfig, {} as vscode.Uri)
 		expect((handler as any).completePrompt).toHaveBeenCalledWith(`Test prompt`)
 	})
 
@@ -56,19 +57,22 @@ describe("enhancePrompt", () => {
 					ENHANCE: customEnhancePromptWithTemplate,
 				},
 			),
+			{} as vscode.Uri,
 		)
 
 		expect(result).toBe("Enhanced prompt")
-		const handler = buildApiHandler(mockApiConfig)
+		const handler = buildApiHandler(mockApiConfig, {} as vscode.Uri)
 		expect((handler as any).completePrompt).toHaveBeenCalledWith(`${customEnhancePrompt}\n\nTest prompt`)
 	})
 
 	it("throws error for empty prompt input", async () => {
-		await expect(singleCompletionHandler(mockApiConfig, "")).rejects.toThrow("No prompt text provided")
+		await expect(singleCompletionHandler(mockApiConfig, "", {} as vscode.Uri)).rejects.toThrow(
+			"No prompt text provided",
+		)
 	})
 
 	it("throws error for missing API configuration", async () => {
-		await expect(singleCompletionHandler({} as ApiConfiguration, "Test prompt")).rejects.toThrow(
+		await expect(singleCompletionHandler({} as ApiConfiguration, "Test prompt", {} as vscode.Uri)).rejects.toThrow(
 			"No valid API configuration provided",
 		)
 	})
@@ -87,7 +91,7 @@ describe("enhancePrompt", () => {
 			}),
 		})
 
-		await expect(singleCompletionHandler(mockApiConfig, "Test prompt")).rejects.toThrow(
+		await expect(singleCompletionHandler(mockApiConfig, "Test prompt", {} as vscode.Uri)).rejects.toThrow(
 			"The selected API provider does not support prompt enhancement",
 		)
 	})
@@ -113,9 +117,9 @@ describe("enhancePrompt", () => {
 			}),
 		} as unknown as SingleCompletionHandler)
 
-		const result = await singleCompletionHandler(openRouterConfig, "Test prompt")
+		const result = await singleCompletionHandler(openRouterConfig, "Test prompt", {} as vscode.Uri)
 
-		expect(buildApiHandler).toHaveBeenCalledWith(openRouterConfig)
+		expect(buildApiHandler).toHaveBeenCalledWith(openRouterConfig, {} as vscode.Uri)
 		expect(result).toBe("Enhanced prompt")
 	})
 
@@ -133,6 +137,8 @@ describe("enhancePrompt", () => {
 			}),
 		} as unknown as SingleCompletionHandler)
 
-		await expect(singleCompletionHandler(mockApiConfig, "Test prompt")).rejects.toThrow("API Error")
+		await expect(singleCompletionHandler(mockApiConfig, "Test prompt", {} as vscode.Uri)).rejects.toThrow(
+			"API Error",
+		)
 	})
 })

@@ -5,6 +5,7 @@ import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react
 import { useEvent, useInterval } from "react-use"
 import {
 	ApiConfiguration,
+	GeminiModelId,
 	ModelInfo,
 	anthropicDefaultModelId,
 	anthropicModels,
@@ -45,7 +46,8 @@ interface ApiOptionsProps {
 }
 
 const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) => {
-	const { apiConfiguration, uriScheme, handleInputChange } = useExtensionState()
+	const { requestsPerMinuteLimit, setApiConfiguration, apiConfiguration, uriScheme, handleInputChange } =
+		useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
@@ -91,7 +93,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 	}, [])
 	useEvent("message", handleMessage)
 
-	const createDropdown = (models: Record<string, ModelInfo>) => {
+	const createDropdown = (models: Record<string, ModelInfo>, onChange?: (modelId: string) => void) => {
 		const options: DropdownOption[] = [
 			{ value: "", label: "Select a model..." },
 			...Object.keys(models).map((modelId) => ({
@@ -109,10 +111,63 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							value: (value as DropdownOption).value,
 						},
 					})
+					onChange?.((value as DropdownOption).value)
 				}}
 				style={{ width: "100%" }}
 				options={options}
 			/>
+		)
+	}
+
+	const renderGeminiOptions = () => {
+		const currentModelId = (apiConfiguration?.apiModelId as GeminiModelId) || geminiDefaultModelId
+		const currentModel = geminiModels[currentModelId]
+		const currentRateLimit =
+			apiConfiguration?.requestsPerMinuteLimit?.[currentModelId] ?? currentModel.requestsPerMinuteLimit
+
+		return (
+			<Fragment>
+				<VSCodeTextField
+					value={apiConfiguration?.geminiApiKey || ""}
+					onChange={(e) =>
+						setApiConfiguration({
+							...apiConfiguration,
+							geminiApiKey: (e.target as HTMLInputElement).value,
+						})
+					}
+					type="password"
+					placeholder="Enter your Google Gemini API key">
+					API Key
+				</VSCodeTextField>
+				<Fragment>
+					<VSCodeTextField
+						value={currentRateLimit?.toString() || ""}
+						onChange={(e) => {
+							const newRateLimit = parseInt((e.target as HTMLInputElement).value)
+							const existingModelInfo = apiConfiguration?.requestsPerMinuteLimit?.[currentModelId] || {}
+							const baseModelInfo = geminiModels[currentModelId]
+
+							const updatedRequestsPerMinuteLimit = {
+								...apiConfiguration?.requestsPerMinuteLimit,
+								[currentModelId]: newRateLimit,
+							}
+
+							// Send dedicated message for requestsPerMinuteLimit
+							vscode.postMessage({
+								type: "requestsPerMinuteLimit",
+								requestsPerMinuteLimit: updatedRequestsPerMinuteLimit,
+							})
+
+							setApiConfiguration({
+								...apiConfiguration,
+								requestsPerMinuteLimit: updatedRequestsPerMinuteLimit,
+							})
+						}}
+						placeholder="Enter requests per minute limit">
+						Requests per minute limit
+					</VSCodeTextField>
+				</Fragment>
+			</Fragment>
 		)
 	}
 
@@ -147,6 +202,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						{ value: "mistral", label: "Mistral" },
 						{ value: "lmstudio", label: "LM Studio" },
 						{ value: "ollama", label: "Ollama" },
+						{ value: "manual", label: "Manual chat" },
 					]}
 				/>
 			</div>
@@ -531,33 +587,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 				</div>
 			)}
 
-			{selectedProvider === "gemini" && (
-				<div>
-					<VSCodeTextField
-						value={apiConfiguration?.geminiApiKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("geminiApiKey")}
-						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>Gemini API Key</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.geminiApiKey && (
-							<VSCodeLink
-								href="https://ai.google.dev/"
-								style={{ display: "inline", fontSize: "inherit" }}>
-								You can get a Gemini API key by signing up here.
-							</VSCodeLink>
-						)}
-					</p>
-				</div>
-			)}
+			{selectedProvider === "gemini" && renderGeminiOptions()}
 
 			{selectedProvider === "openai" && (
 				<div>
@@ -1283,6 +1313,8 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 				</div>
 			)}
 
+			{selectedProvider === "manual" && <div></div>}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -1311,7 +1343,13 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 							{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
 							{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
 							{selectedProvider === "vertex" && createDropdown(vertexModels)}
-							{selectedProvider === "gemini" && createDropdown(geminiModels)}
+							{selectedProvider === "gemini" &&
+								createDropdown(geminiModels, (modelId: string) =>
+									setApiConfiguration({
+										...apiConfiguration,
+										apiModelId: modelId,
+									}),
+								)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
@@ -1497,6 +1535,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 		return { selectedProvider: provider, selectedModelId, selectedModelInfo }
 	}
 	switch (provider) {
+		case "manual":
+			return {
+				selectedProvider: provider,
+				selectedModelId: "",
+				selectedModelInfo: { supportsPromptCache: false, supportsImages: false, contextWindow: 64000 },
+			}
 		case "anthropic":
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 		case "bedrock":

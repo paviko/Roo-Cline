@@ -106,6 +106,8 @@ export class Cline {
 	private didAlreadyUseTool = false
 	private didCompleteReadingStream = false
 
+	private static requestTimestamps: number[] = []
+
 	constructor(
 		provider: ClineProvider,
 		apiConfiguration: ApiConfiguration,
@@ -122,7 +124,7 @@ export class Cline {
 		}
 
 		this.taskId = crypto.randomUUID()
-		this.api = buildApiHandler(apiConfiguration)
+		this.api = buildApiHandler(apiConfiguration, provider.context.extensionUri)
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context)
@@ -808,6 +810,25 @@ export class Cline {
 				console.error("MCP servers failed to connect in time")
 			})
 		}
+
+		// Clean up timestamps older than 1 minute
+		const now = Date.now()
+		Cline.requestTimestamps = Cline.requestTimestamps.filter((ts) => now - ts < 60000)
+
+		// Check if we've hit the rate limit
+		const ratePerMinute = this.api.getModel().requestsPerMinuteLimit
+		if (ratePerMinute && Cline.requestTimestamps.length >= ratePerMinute) {
+			const oldestTimestamp = Cline.requestTimestamps[0]
+			const waitTime = Math.max(0, 60000 - (now - oldestTimestamp))
+
+			if (waitTime > 0) {
+				await this.say("text", "Waiting for rate limit...")
+				await delay(waitTime)
+			}
+		}
+
+		// Add current timestamp
+		Cline.requestTimestamps.push(now)
 
 		const { browserViewportSize, mode, customModePrompts, preferredLanguage } =
 			(await this.providerRef.deref()?.getState()) ?? {}
