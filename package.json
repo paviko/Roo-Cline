@@ -345,6 +345,9 @@
 		"web-tree-sitter": "^0.22.6",
 		"zod": "^3.23.8"
 	},
+	"optionalDependencies": {
+		"@esbuild/linux-x64": "^0.24.2"
+	},
 	"lint-staged": {
 		"*.{js,jsx,ts,tsx,json,css,md}": [
 			"prettier --write"
