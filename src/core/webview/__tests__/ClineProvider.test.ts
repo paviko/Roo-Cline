@@ -4,6 +4,7 @@ import { ExtensionMessage, ExtensionState } from "../../../shared/ExtensionMessa
 import { setSoundEnabled } from "../../../utils/sound"
 import { defaultModeSlug, modes } from "../../../shared/modes"
 import { addCustomInstructions } from "../../prompts/sections/custom-instructions"
+import { experimentDefault, experiments } from "../../../shared/experiments"
 
 // Mock custom-instructions module
 const mockAddCustomInstructions = jest.fn()
@@ -106,6 +107,11 @@ jest.mock("vscode", () => ({
 	env: {
 		uriScheme: "vscode",
 		language: "en",
+	},
+	ExtensionMode: {
+		Production: 1,
+		Development: 2,
+		Test: 3,
 	},
 }))
 
@@ -317,9 +323,12 @@ describe("ClineProvider", () => {
 			browserViewportSize: "900x600",
 			fuzzyMatchThreshold: 1.0,
 			mcpEnabled: true,
+			enableMcpServerCreation: false,
 			requestDelaySeconds: 5,
+			rateLimitSeconds: 0,
 			mode: defaultModeSlug,
 			customModes: [],
+			experiments: experimentDefault,
 		}
 
 		const message: ExtensionMessage = {
@@ -617,6 +626,7 @@ describe("ClineProvider", () => {
 			mode: "code",
 			diffEnabled: true,
 			fuzzyMatchThreshold: 1.0,
+			experiments: experimentDefault,
 		} as any)
 
 		// Reset Cline mock
@@ -636,7 +646,7 @@ describe("ClineProvider", () => {
 			"Test task",
 			undefined,
 			undefined,
-			undefined,
+			experimentDefault,
 		)
 	})
 	test("handles mode-specific custom instructions updates", async () => {
@@ -886,7 +896,9 @@ describe("ClineProvider", () => {
 					},
 				},
 				mcpEnabled: true,
+				enableMcpServerCreation: false,
 				mode: "code" as const,
+				experiments: experimentDefault,
 			} as any)
 
 			const handler1 = getMessageHandler()
@@ -917,7 +929,9 @@ describe("ClineProvider", () => {
 					},
 				},
 				mcpEnabled: false,
+				enableMcpServerCreation: false,
 				mode: "code" as const,
+				experiments: experimentDefault,
 			} as any)
 
 			const handler2 = getMessageHandler()
@@ -980,11 +994,13 @@ describe("ClineProvider", () => {
 				},
 				customModePrompts: {},
 				mode: "code",
+				enableMcpServerCreation: true,
 				mcpEnabled: false,
 				browserViewportSize: "900x600",
 				experimentalDiffStrategy: true,
 				diffEnabled: true,
 				fuzzyMatchThreshold: 0.8,
+				experiments: experimentDefault,
 			} as any)
 
 			// Mock SYSTEM_PROMPT to verify diffStrategy and diffEnabled are passed
@@ -1012,6 +1028,8 @@ describe("ClineProvider", () => {
 				undefined, // effectiveInstructions
 				undefined, // preferredLanguage
 				true, // diffEnabled
+				experimentDefault,
+				true,
 			)
 
 			// Run the test again to verify it's consistent
@@ -1034,6 +1052,8 @@ describe("ClineProvider", () => {
 				experimentalDiffStrategy: true,
 				diffEnabled: false,
 				fuzzyMatchThreshold: 0.8,
+				experiments: experimentDefault,
+				enableMcpServerCreation: true,
 			} as any)
 
 			// Mock SYSTEM_PROMPT to verify diffEnabled is passed as false
@@ -1061,6 +1081,8 @@ describe("ClineProvider", () => {
 				undefined, // effectiveInstructions
 				undefined, // preferredLanguage
 				false, // diffEnabled
+				experimentDefault,
+				true,
 			)
 		})
 
@@ -1075,8 +1097,10 @@ describe("ClineProvider", () => {
 					architect: { customInstructions: "Architect mode instructions" },
 				},
 				mode: "architect",
+				enableMcpServerCreation: false,
 				mcpEnabled: false,
 				browserViewportSize: "900x600",
+				experiments: experimentDefault,
 			} as any)
 
 			// Mock SYSTEM_PROMPT to call addCustomInstructions

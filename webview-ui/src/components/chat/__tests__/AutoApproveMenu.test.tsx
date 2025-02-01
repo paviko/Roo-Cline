@@ -2,6 +2,7 @@ import { render, fireEvent, screen } from "@testing-library/react"
 import { useExtensionState } from "../../../context/ExtensionStateContext"
 import AutoApproveMenu from "../AutoApproveMenu"
 import { defaultModeSlug, defaultPrompts } from "../../../../../src/shared/modes"
+import { experimentDefault } from "../../../../../src/shared/experiments"
 
 // Mock the ExtensionStateContext hook
 jest.mock("../../../context/ExtensionStateContext")
@@ -11,6 +12,7 @@ const mockUseExtensionState = useExtensionState as jest.MockedFunction<typeof us
 describe("AutoApproveMenu", () => {
 	const defaultMockState = {
 		// Required state properties
+		cwd: "",
 		version: "1.0.0",
 		clineMessages: [],
 		taskHistory: [],
@@ -27,6 +29,7 @@ describe("AutoApproveMenu", () => {
 		terminalOutputLineLimit: 500,
 		mcpEnabled: true,
 		requestDelaySeconds: 5,
+		rateLimitSeconds: 0,
 		currentApiConfigName: "default",
 		listApiConfigMeta: [],
 		mode: defaultModeSlug,
@@ -41,6 +44,9 @@ describe("AutoApproveMenu", () => {
 		openAiModels: [],
 		mcpServers: [],
 		filePaths: [],
+		experiments: experimentDefault,
+		customModes: [],
+		enableMcpServerCreation: false,
 
 		// Auto-approve specific properties
 		alwaysAllowReadOnly: false,
@@ -49,6 +55,7 @@ describe("AutoApproveMenu", () => {
 		alwaysAllowBrowser: false,
 		alwaysAllowMcp: false,
 		alwaysApproveResubmit: false,
+		alwaysAllowModeSwitch: false,
 		autoApprovalEnabled: false,
 
 		// Required setter functions
@@ -59,6 +66,7 @@ describe("AutoApproveMenu", () => {
 		setAlwaysAllowExecute: jest.fn(),
 		setAlwaysAllowBrowser: jest.fn(),
 		setAlwaysAllowMcp: jest.fn(),
+		setAlwaysAllowModeSwitch: jest.fn(),
 		setShowAnnouncement: jest.fn(),
 		setAllowedCommands: jest.fn(),
 		setSoundEnabled: jest.fn(),
@@ -73,13 +81,19 @@ describe("AutoApproveMenu", () => {
 		setMcpEnabled: jest.fn(),
 		setAlwaysApproveResubmit: jest.fn(),
 		setRequestDelaySeconds: jest.fn(),
+		setRateLimitSeconds: jest.fn(),
 		setCurrentApiConfigName: jest.fn(),
 		setListApiConfigMeta: jest.fn(),
 		onUpdateApiConfig: jest.fn(),
 		setMode: jest.fn(),
-		setCustomPrompts: jest.fn(),
+		setCustomModePrompts: jest.fn(),
+		setCustomSupportPrompts: jest.fn(),
 		setEnhancementApiConfigId: jest.fn(),
 		setAutoApprovalEnabled: jest.fn(),
+		setExperimentEnabled: jest.fn(),
+		handleInputChange: jest.fn(),
+		setCustomModes: jest.fn(),
+		setEnableMcpServerCreation: jest.fn(),
 	}
 
 	beforeEach(() => {

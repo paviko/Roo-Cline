@@ -1,3 +1,5 @@
+import { ManualHandler } from "./providers/manual"
+import * as vscode from "vscode"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { GlamaHandler } from "./providers/glama"
 import { ApiConfiguration, ModelInfo } from "../shared/api"
@@ -14,8 +16,7 @@ import { DeepSeekHandler } from "./providers/deepseek"
 import { MistralHandler } from "./providers/mistral"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { ApiStream } from "./transform/stream"
-import { ManualHandler } from "./providers/manual"
-import * as vscode from "vscode"
+import { UnboundHandler } from "./providers/unbound"
 
 export interface SingleCompletionHandler {
 	completePrompt(prompt: string): Promise<string>
@@ -23,7 +24,7 @@ export interface SingleCompletionHandler {
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
-	getModel(): { id: string; info: ModelInfo; requestsPerMinuteLimit?: number }
+	getModel(): { requestsPerMinuteLimit?: number; id: string; info: ModelInfo }
 }
 
 export function buildApiHandler(configuration: ApiConfiguration, extensionUri: vscode.Uri): ApiHandler {
@@ -57,6 +58,8 @@ export function buildApiHandler(configuration: ApiConfiguration, extensionUri: v
 			return new VsCodeLmHandler(options)
 		case "mistral":
 			return new MistralHandler(options)
+		case "unbound":
+			return new UnboundHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}
