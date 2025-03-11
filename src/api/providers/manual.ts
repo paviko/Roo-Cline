@@ -13,6 +13,10 @@ export class ManualHandler implements ApiHandler {
 		this.extensionUri = extensionUri
 	}
 
+	countTokens(content: Array<Anthropic.Messages.ContentBlockParam>): Promise<number> {
+        return Promise.resolve(content.length / 4);
+    }
+
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const response = await new Promise<string>((resolve) => {
 			const panel = vscode.window.createWebviewPanel("manualInput", "Manual Input", vscode.ViewColumn.One, {

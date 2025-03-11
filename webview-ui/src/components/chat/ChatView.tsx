@@ -1,4 +1,4 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useDeepCompareEffect, useEvent, useMount } from "react-use"
@@ -29,6 +29,8 @@ import TaskHeader from "./TaskHeader"
 import AutoApproveMenu from "./AutoApproveMenu"
 import { AudioType } from "../../../../src/shared/WebviewMessage"
 import { validateCommand } from "../../utils/command-validation"
+import { getAllModes } from "../../../../src/shared/modes"
+import TelemetryBanner from "../common/TelemetryBanner"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -38,6 +40,9 @@ interface ChatViewProps {
 }
 
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
+
+const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0
+const modeShortcutText = `${isMac ? "⌘" : "Ctrl"} + . for next mode`
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const {
@@ -58,6 +63,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setMode,
 		autoApprovalEnabled,
 		alwaysAllowModeSwitch,
+		alwaysAllowSubtasks,
+		customModes,
+		telemetrySetting,
 	} = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
@@ -85,6 +93,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [isAtBottom, setIsAtBottom] = useState(false)
 
 	const [wasStreaming, setWasStreaming] = useState<boolean>(false)
+	const [showCheckpointWarning, setShowCheckpointWarning] = useState<boolean>(false)
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
@@ -141,6 +150,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								case "newFileCreated":
 									setPrimaryButtonText("Save")
 									setSecondaryButtonText("Reject")
+									break
+								case "finishTask":
+									setPrimaryButtonText("Complete Subtask and Return")
+									setSecondaryButtonText(undefined)
 									break
 								default:
 									setPrimaryButtonText("Approve")
@@ -225,9 +238,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								setEnableButtons(false)
 							}
 							break
+						case "api_req_finished":
 						case "task":
 						case "error":
-						case "api_req_finished":
 						case "text":
 						case "browser_action":
 						case "browser_action_result":
@@ -277,7 +290,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			return true
 		} else {
 			const lastApiReqStarted = findLast(modifiedMessages, (message) => message.say === "api_req_started")
-			if (lastApiReqStarted && lastApiReqStarted.text != null && lastApiReqStarted.say === "api_req_started") {
+			if (
+				lastApiReqStarted &&
+				lastApiReqStarted.text !== null &&
+				lastApiReqStarted.text !== undefined &&
+				lastApiReqStarted.say === "api_req_started"
+			) {
 				const cost = JSON.parse(lastApiReqStarted.text).cost
 				if (cost === undefined) {
 					// api request has not finished yet
@@ -583,6 +601,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			switch (message.say) {
 				case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
 				case "api_req_retried": // this message is used to update the latest api_req_started that the request was retried
+				case "api_req_deleted": // aggregated api_req metrics from deleted messages
 					return false
 				case "api_req_retry_delayed":
 					// Only show the retry message if it's the last message
@@ -668,8 +687,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				(alwaysAllowMcp && message.ask === "use_mcp_server" && isMcpToolAlwaysAllowed(message)) ||
 				(alwaysAllowModeSwitch &&
 					message.ask === "tool" &&
-					(JSON.parse(message.text || "{}")?.tool === "switchMode" ||
-						JSON.parse(message.text || "{}")?.tool === "newTask"))
+					JSON.parse(message.text || "{}")?.tool === "switchMode") ||
+				(alwaysAllowSubtasks &&
+					message.ask === "tool" &&
+					["newTask", "finishTask"].includes(JSON.parse(message.text || "{}")?.tool))
 			)
 		},
 		[
@@ -684,6 +705,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			alwaysAllowMcp,
 			isMcpToolAlwaysAllowed,
 			alwaysAllowModeSwitch,
+			alwaysAllowSubtasks,
 		],
 	)
 
@@ -759,9 +781,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				if (message.say === "api_req_started") {
 					// get last api_req_started in currentGroup to check if it's cancelled. If it is then this api req is not part of the current browser session
 					const lastApiReqStarted = [...currentGroup].reverse().find((m) => m.say === "api_req_started")
-					if (lastApiReqStarted?.text != null) {
+					if (lastApiReqStarted?.text !== null && lastApiReqStarted?.text !== undefined) {
 						const info = JSON.parse(lastApiReqStarted.text)
-						const isCancelled = info.cancelReason != null
+						const isCancelled = info.cancelReason !== null && info.cancelReason !== undefined
 						if (isCancelled) {
 							endBrowserSession()
 							result.push(message)
@@ -912,12 +934,53 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [])
 	useEvent("wheel", handleWheel, window, { passive: true }) // passive improves scrolling performance
 
+	// Effect to handle showing the checkpoint warning after a delay
+	useEffect(() => {
+		// Only show the warning when there's a task but no visible messages yet
+		if (task && modifiedMessages.length === 0 && !isStreaming) {
+			const timer = setTimeout(() => {
+				setShowCheckpointWarning(true)
+			}, 5000) // 5 seconds
+
+			return () => clearTimeout(timer)
+		}
+	}, [task, modifiedMessages.length, isStreaming])
+
+	// Effect to hide the checkpoint warning when messages appear
+	useEffect(() => {
+		if (modifiedMessages.length > 0 || isStreaming) {
+			setShowCheckpointWarning(false)
+		}
+	}, [modifiedMessages.length, isStreaming])
+
+	// Checkpoint warning component
+	const CheckpointWarningMessage = useCallback(
+		() => (
+			<div className="flex items-center p-3 my-3 bg-vscode-inputValidation-warningBackground border border-vscode-inputValidation-warningBorder rounded">
+				<span className="codicon codicon-loading codicon-modifier-spin mr-2" />
+				<span className="text-vscode-foreground">
+					Still initializing checkpoint... If this takes too long, you can{" "}
+					<VSCodeLink
+						href="#"
+						onClick={(e) => {
+							e.preventDefault()
+							window.postMessage({ type: "action", action: "settingsButtonClicked" }, "*")
+						}}
+						className="inline px-0.5">
+						disable checkpoints in settings
+					</VSCodeLink>{" "}
+					and restart your task.
+				</span>
+			</div>
+		),
+		[],
+	)
+
 	const placeholderText = useMemo(() => {
 		const baseText = task ? "Type a message..." : "Type your task here..."
-		const contextText = "(@ to add context"
-		const imageText = shouldDisableImages ? "" : ", hold shift to drag in images"
-		const helpText = imageText ? `\n${contextText}${imageText})` : `\n${contextText})`
-		return baseText + helpText
+		const contextText = "(@ to add context, / to switch modes"
+		const imageText = shouldDisableImages ? ", hold shift to drag in files" : ", hold shift to drag in files/images"
+		return baseText + `\n${contextText}${imageText})`
 	}, [task, shouldDisableImages])
 
 	const itemContent = useCallback(
@@ -999,6 +1062,39 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		isWriteToolAction,
 	])
 
+	// Function to handle mode switching
+	const switchToNextMode = useCallback(() => {
+		const allModes = getAllModes(customModes)
+		const currentModeIndex = allModes.findIndex((m) => m.slug === mode)
+		const nextModeIndex = (currentModeIndex + 1) % allModes.length
+		// Update local state and notify extension to sync mode change
+		setMode(allModes[nextModeIndex].slug)
+		vscode.postMessage({
+			type: "mode",
+			text: allModes[nextModeIndex].slug,
+		})
+	}, [mode, setMode, customModes])
+
+	// Add keyboard event handler
+	const handleKeyDown = useCallback(
+		(event: KeyboardEvent) => {
+			// Check for Command + . (period)
+			if ((event.metaKey || event.ctrlKey) && event.key === ".") {
+				event.preventDefault() // Prevent default browser behavior
+				switchToNextMode()
+			}
+		},
+		[switchToNextMode],
+	)
+
+	// Add event listener
+	useEffect(() => {
+		window.addEventListener("keydown", handleKeyDown)
+		return () => {
+			window.removeEventListener("keydown", handleKeyDown)
+		}
+	}, [handleKeyDown])
+
 	return (
 		<div
 			style={{
@@ -1012,17 +1108,26 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				overflow: "hidden",
 			}}>
 			{task ? (
-				<TaskHeader
-					task={task}
-					tokensIn={apiMetrics.totalTokensIn}
-					tokensOut={apiMetrics.totalTokensOut}
-					doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
-					cacheWrites={apiMetrics.totalCacheWrites}
-					cacheReads={apiMetrics.totalCacheReads}
-					totalCost={apiMetrics.totalCost}
-					contextTokens={apiMetrics.contextTokens}
-					onClose={handleTaskCloseButtonClick}
-				/>
+				<>
+					<TaskHeader
+						task={task}
+						tokensIn={apiMetrics.totalTokensIn}
+						tokensOut={apiMetrics.totalTokensOut}
+						doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
+						cacheWrites={apiMetrics.totalCacheWrites}
+						cacheReads={apiMetrics.totalCacheReads}
+						totalCost={apiMetrics.totalCost}
+						contextTokens={apiMetrics.contextTokens}
+						onClose={handleTaskCloseButtonClick}
+					/>
+
+					{/* Checkpoint warning message */}
+					{showCheckpointWarning && (
+						<div className="px-3">
+							<CheckpointWarningMessage />
+						</div>
+					)}
+				</>
 			) : (
 				<div
 					style={{
@@ -1033,9 +1138,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						flexDirection: "column",
 						paddingBottom: "10px",
 					}}>
+					{telemetrySetting === "unset" && <TelemetryBanner />}
 					{showAnnouncement && <Announcement version={version} hideAnnouncement={hideAnnouncement} />}
 					<div style={{ padding: "0 20px", flexShrink: 0 }}>
-						<h2>What can I do for you?</h2>
+						<h2>What can Roo do for you?</h2>
 						<p>
 							Thanks to the latest breakthroughs in agentic coding capabilities, I can handle complex
 							software development tasks step-by-step. With tools that let me create & edit files, explore
@@ -1113,7 +1219,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								onClick={() => {
 									scrollToBottomSmooth()
 									disableAutoScrollRef.current = false
-								}}>
+								}}
+								title="Scroll to bottom of chat">
 								<span className="codicon codicon-chevron-down" style={{ fontSize: "18px" }}></span>
 							</ScrollToBottomButton>
 						</div>
@@ -1137,6 +1244,25 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 										flex: secondaryButtonText ? 1 : 2,
 										marginRight: secondaryButtonText ? "6px" : "0",
 									}}
+									title={
+										primaryButtonText === "Retry"
+											? "Try the operation again"
+											: primaryButtonText === "Save"
+												? "Save the file changes"
+												: primaryButtonText === "Approve"
+													? "Approve this action"
+													: primaryButtonText === "Run Command"
+														? "Execute this command"
+														: primaryButtonText === "Start New Task"
+															? "Begin a new task"
+															: primaryButtonText === "Resume Task"
+																? "Continue the current task"
+																: primaryButtonText === "Proceed Anyways"
+																	? "Continue despite warnings"
+																	: primaryButtonText === "Proceed While Running"
+																		? "Continue while command executes"
+																		: undefined
+									}
 									onClick={(e) => handlePrimaryButtonClick(inputValue, selectedImages)}>
 									{primaryButtonText}
 								</VSCodeButton>
@@ -1149,6 +1275,17 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 										flex: isStreaming ? 2 : 1,
 										marginLeft: isStreaming ? 0 : "6px",
 									}}
+									title={
+										isStreaming
+											? "Cancel the current operation"
+											: secondaryButtonText === "Start New Task"
+												? "Begin a new task"
+												: secondaryButtonText === "Reject"
+													? "Reject this action"
+													: secondaryButtonText === "Terminate"
+														? "End the current task"
+														: undefined
+									}
 									onClick={(e) => handleSecondaryButtonClick(inputValue, selectedImages)}>
 									{isStreaming ? "Cancel" : secondaryButtonText}
 								</VSCodeButton>
@@ -1157,6 +1294,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					)}
 				</>
 			)}
+
 			<ChatTextArea
 				ref={textAreaRef}
 				inputValue={inputValue}
@@ -1175,7 +1313,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				}}
 				mode={mode}
 				setMode={setMode}
+				modeShortcutText={modeShortcutText}
 			/>
+
+			<div id="roo-portal" />
 		</div>
 	)
 }
