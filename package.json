@@ -81,11 +81,6 @@
 		},
 		"commands": [
 			{
-				"command": "roo-cline.addToContext",
-				"title": "Roo Code: Add to Context",
-				"category": "Roo Code"
-			},
-			{
 				"command": "roo-cline.addAllOpenToContext",
 				"title": "Roo Code: Add All Open Files to Context",
 				"category": "Roo Code",
