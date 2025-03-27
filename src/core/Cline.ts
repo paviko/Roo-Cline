@@ -1958,69 +1958,104 @@ export class Cline extends EventEmitter<ClineEvents> {
 					}
 
 					case "insert_content": {
-						const relPath: string | undefined = block.params.path
-						const operations: string | undefined = block.params.operations
+						const relPath: string | undefined = block.params.path;
+						const operationsXml: string | undefined = block.params.operations; // Raw XML string
 
 						const sharedMessageProps: ClineSayTool = {
 							tool: "appliedDiff",
 							path: getReadablePath(this.cwd, removeClosingTag("path", relPath)),
-						}
+						};
 
 						try {
 							if (block.partial) {
-								const partialMessage = JSON.stringify(sharedMessageProps)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								break
+								const partialMessage = JSON.stringify(sharedMessageProps);
+								await this.ask("tool", partialMessage, block.partial).catch(() => {});
+								break;
 							}
 
 							// Validate required parameters
 							if (!relPath) {
-								this.consecutiveMistakeCount++
-								pushToolResult(await this.sayAndCreateMissingParamError("insert_content", "path"))
-								break
+								this.consecutiveMistakeCount++;
+								pushToolResult(await this.sayAndCreateMissingParamError("insert_content", "path"));
+								break;
 							}
 
-							if (!operations) {
-								this.consecutiveMistakeCount++
-								pushToolResult(await this.sayAndCreateMissingParamError("insert_content", "operations"))
-								break
+							if (!operationsXml) {
+								this.consecutiveMistakeCount++;
+								pushToolResult(await this.sayAndCreateMissingParamError("insert_content", "operations"));
+								break;
 							}
 
-							const absolutePath = path.resolve(this.cwd, relPath)
-							const fileExists = await fileExistsAtPath(absolutePath)
+							const absolutePath = path.resolve(this.cwd, relPath);
+							const fileExists = await fileExistsAtPath(absolutePath);
 
 							if (!fileExists) {
-								this.consecutiveMistakeCount++
-								const formattedError = `File does not exist at path: ${absolutePath}\n\n<error_details>\nThe specified file could not be found. Please verify the file path and try again.\n</error_details>`
-								await this.say("error", formattedError)
-								pushToolResult(formattedError)
-								break
+								this.consecutiveMistakeCount++;
+								const formattedError = `File does not exist at path: ${absolutePath}\n\n<error_details>\nThe specified file could not be found. Please verify the file path and try again.\n</error_details>`;
+								await this.say("error", formattedError);
+								pushToolResult(formattedError);
+								break;
 							}
 
 							let parsedOperations: Array<{
-								start_line: number
-								content: string
-							}>
+								start_line: number;
+								content: string;
+							}>;
 
 							try {
-								parsedOperations = JSON.parse(operations)
-								if (!Array.isArray(parsedOperations)) {
-									throw new Error("Operations must be an array")
+								// Use regex to extract operations from the XML string
+								parsedOperations = [];
+								const operationRegex = /<operation>([\s\S]*?)<\/operation>/g;
+								const startLineRegex = /<start_line>(\d+)<\/start_line>/;
+								const contentRegex = /<content>([\s\S]*?)<\/content>/; // Non-greedy match for content
+
+								let match;
+								while ((match = operationRegex.exec(operationsXml)) !== null) {
+									const operationContent = match[1];
+									const startLineMatch = operationContent.match(startLineRegex);
+									const contentMatch = operationContent.match(contentRegex);
+
+									if (!startLineMatch || !contentMatch) {
+										throw new Error("Invalid operation format: Missing start_line or content tag.");
+									}
+
+									const startLineNum = parseInt(startLineMatch[1], 10);
+									if (isNaN(startLineNum)) {
+										throw new Error(`Invalid start_line value: ${startLineMatch[1]}`);
+									}
+
+									// Extract content directly, preserving whitespace and newlines
+									let content = contentMatch[1];
+
+									// Trim only the single leading newline, if present
+									if (content.startsWith('\n')) {
+										content = content.substring(1);
+									}
+									// Trim only the single trailing newline, if present
+									if (content.endsWith('\n')) {
+										content = content.substring(0, content.length - 1);
+									}
+
+									parsedOperations.push({ start_line: startLineNum, content: content });
 								}
+								if (parsedOperations.length === 0) {
+									throw new Error("No valid <operation> elements found in operations XML.");
+								}
+
 							} catch (error) {
-								this.consecutiveMistakeCount++
-								await this.say("error", `Failed to parse operations JSON: ${error.message}`)
-								pushToolResult(formatResponse.toolError("Invalid operations JSON format"))
-								break
+								this.consecutiveMistakeCount++;
+								await this.say("error", `Failed to parse operations XML or invalid format: ${error.message}`);
+								pushToolResult(formatResponse.toolError("Invalid operations XML format"));
+								break;
 							}
 
-							this.consecutiveMistakeCount = 0
+							this.consecutiveMistakeCount = 0;
 
 							// Read the file
-							const fileContent = await fs.readFile(absolutePath, "utf8")
-							this.diffViewProvider.editType = "modify"
-							this.diffViewProvider.originalContent = fileContent
-							const lines = fileContent.split("\n")
+							const fileContent = await fs.readFile(absolutePath, "utf8");
+							this.diffViewProvider.editType = "modify";
+							this.diffViewProvider.originalContent = fileContent;
+							const lines = fileContent.split("\n");
 
 							const updatedContent = insertGroups(
 								lines,
@@ -2105,19 +2140,19 @@ export class Cline extends EventEmitter<ClineEvents> {
 					}
 
 					case "search_and_replace": {
-						const relPath: string | undefined = block.params.path
-						const operations: string | undefined = block.params.operations
+						const relPath: string | undefined = block.params.path;
+						const operationsXml: string | undefined = block.params.operations; // Raw XML string
 
 						const sharedMessageProps: ClineSayTool = {
 							tool: "appliedDiff",
 							path: getReadablePath(this.cwd, removeClosingTag("path", relPath)),
-						}
+						};
 
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
 									path: removeClosingTag("path", relPath),
-									operations: removeClosingTag("operations", operations),
+									operations: removeClosingTag("operations", operationsXml),
 								})
 								await this.ask("tool", partialMessage, block.partial).catch(() => {})
 								break
@@ -2129,7 +2164,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 									)
 									break
 								}
-								if (!operations) {
+								if (!operationsXml) {
 									this.consecutiveMistakeCount++
 									pushToolResult(
 										await this.sayAndCreateMissingParamError("search_and_replace", "operations"),
@@ -2159,55 +2194,135 @@ export class Cline extends EventEmitter<ClineEvents> {
 								}>
 
 								try {
-									parsedOperations = JSON.parse(operations)
-									if (!Array.isArray(parsedOperations)) {
-										throw new Error("Operations must be an array")
-									}
+                                    // Use regex to extract operations from the XML string
+                                    parsedOperations = [];
+                                    const operationRegex = /<operation>([\s\S]*?)<\/operation>/g;
+                                    const searchRegex = /<search>([\s\S]*?)<\/search>/;
+                                    const replaceRegex = /<replace>([\s\S]*?)<\/replace>/;
+                                    const startLineRegex = /<start_line>(\d+)<\/start_line>/;
+                                    const endLineRegex = /<end_line>(\d+)<\/end_line>/;
+                                    const useRegexTagRegex = /<use_regex>true<\/use_regex>/i; // Case-insensitive check for "true"
+                                    const ignoreCaseTagRegex = /<ignore_case>true<\/ignore_case>/i; // Case-insensitive check for "true"
+                                    const regexFlagsRegex = /<regex_flags>(.*?)<\/regex_flags>/;
+
+                                    let match;
+                                    while ((match = operationRegex.exec(operationsXml)) !== null) {
+                                        const operationContent = match[1];
+                                        const searchMatch = operationContent.match(searchRegex);
+                                        const replaceMatch = operationContent.match(replaceRegex);
+
+                                        if (!searchMatch || !replaceMatch) {
+                                            throw new Error("Invalid operation format: Missing search or replace tag.");
+                                        }
+
+										let rawSearch = searchMatch[1];
+										let rawReplace = replaceMatch[1];
+
+										// Trim only the single leading newline, if present
+										if (rawSearch.startsWith('\n')) {
+											rawSearch = rawSearch.substring(1);
+										}
+										// Trim only the single trailing newline, if present
+										if (rawSearch.endsWith('\n')) {
+											rawSearch = rawSearch.substring(0, rawSearch.length - 1);
+										}
+										// Trim only the single leading newline, if present
+										if (rawReplace.startsWith('\n')) {
+											rawReplace = rawReplace.substring(1);
+										}
+										// Trim only the single trailing newline, if present
+										if (rawReplace.endsWith('\n')) {
+											rawReplace = rawReplace.substring(0, rawReplace.length - 1);
+										}
+
+										const op: any = {
+											search: rawSearch,  // Use the cleaned search string
+											replace: rawReplace, // Use the cleaned replace string
+										};
+
+                                        const startLineMatch = operationContent.match(startLineRegex);
+                                        if (startLineMatch) {
+                                            const startLineNum = parseInt(startLineMatch[1], 10);
+                                            if (isNaN(startLineNum)) throw new Error(`Invalid start_line value: ${startLineMatch[1]}`);
+                                            op.start_line = startLineNum;
+                                        }
+
+                                        const endLineMatch = operationContent.match(endLineRegex);
+                                        if (endLineMatch) {
+                                            const endLineNum = parseInt(endLineMatch[1], 10);
+                                            if (isNaN(endLineNum)) throw new Error(`Invalid end_line value: ${endLineMatch[1]}`);
+                                            op.end_line = endLineNum;
+                                        }
+
+                                        op.use_regex = useRegexTagRegex.test(operationContent);
+                                        op.ignore_case = ignoreCaseTagRegex.test(operationContent);
+
+                                        const regexFlagsMatch = operationContent.match(regexFlagsRegex);
+                                        if (regexFlagsMatch) {
+                                            op.regex_flags = regexFlagsMatch[1];
+                                        }
+
+                                        parsedOperations.push(op);
+                                    }
+                                     if (parsedOperations.length === 0) {
+                                        throw new Error("No valid <operation> elements found in operations XML.");
+                                    }
+
 								} catch (error) {
-									this.consecutiveMistakeCount++
-									await this.say("error", `Failed to parse operations JSON: ${error.message}`)
-									pushToolResult(formatResponse.toolError("Invalid operations JSON format"))
-									break
+									this.consecutiveMistakeCount++;
+									await this.say("error", `Failed to parse operations XML or invalid format: ${error.message}`);
+									pushToolResult(formatResponse.toolError("Invalid operations XML format"));
+									break;
 								}
 
 								// Read the original file content
-								const fileContent = await fs.readFile(absolutePath, "utf-8")
-								this.diffViewProvider.editType = "modify"
-								this.diffViewProvider.originalContent = fileContent
-								let lines = fileContent.split("\n")
+								const fileContent = await fs.readFile(absolutePath, "utf-8");
+								this.diffViewProvider.editType = "modify";
+								this.diffViewProvider.originalContent = fileContent; // Store original for diffing
+								let currentContent = fileContent; // Start modifications from original content
 
+								// Apply each operation sequentially
 								for (const op of parsedOperations) {
-									const flags = op.regex_flags ?? (op.ignore_case ? "gi" : "g")
-									const multilineFlags = flags.includes("m") ? flags : flags + "m"
+									// Determine regex flags
+									let flags = op.regex_flags || "";
+									if (op.ignore_case && !flags.includes("i")) flags += "i";
+									if (!flags.includes("g")) flags += "g"; // Always global replace within the scope
+									if (!flags.includes("m")) flags += "m"; // Always multiline
 
+									// Create the search pattern (regex or literal string)
 									const searchPattern = op.use_regex
-										? new RegExp(op.search, multilineFlags)
-										: new RegExp(escapeRegExp(op.search), multilineFlags)
+										? new RegExp(op.search, flags)
+										: new RegExp(escapeRegExp(op.search), flags);
 
-									if (op.start_line || op.end_line) {
-										const startLine = Math.max((op.start_line ?? 1) - 1, 0)
-										const endLine = Math.min((op.end_line ?? lines.length) - 1, lines.length - 1)
+									// Determine the scope of the replacement (full file or line range)
+									if (op.start_line !== undefined || op.end_line !== undefined) {
+										const lines = currentContent.split("\n");
+										const startLineIndex = Math.max(0, (op.start_line || 1) - 1); // 0-based
+										const endLineIndex = Math.min(lines.length - 1, (op.end_line || lines.length) - 1); // 0-based, inclusive
 
-										// Get the content before and after the target section
-										const beforeLines = lines.slice(0, startLine)
-										const afterLines = lines.slice(endLine + 1)
+										if (startLineIndex > endLineIndex) {
+											// Invalid range, skip operation or throw error? Skipping for now.
+											console.warn("Invalid line range in search_and_replace operation:", op);
+											continue;
+										}
 
-										// Get the target section and perform replacement
-										const targetContent = lines.slice(startLine, endLine + 1).join("\n")
-										const modifiedContent = targetContent.replace(searchPattern, op.replace)
-										const modifiedLines = modifiedContent.split("\n")
+										const targetSection = lines.slice(startLineIndex, endLineIndex + 1).join("\n");
+										const modifiedSection = targetSection.replace(searchPattern, op.replace);
 
-										// Reconstruct the full content with the modified section
-										lines = [...beforeLines, ...modifiedLines, ...afterLines]
+										// Reconstruct the content with the modified section
+										currentContent = [
+											...lines.slice(0, startLineIndex),
+											modifiedSection,
+											...lines.slice(endLineIndex + 1),
+										].join("\n");
 									} else {
-										// Global replacement
-										const fullContent = lines.join("\n")
-										const modifiedContent = fullContent.replace(searchPattern, op.replace)
-										lines = modifiedContent.split("\n")
+										// Apply replacement to the whole content
+										currentContent = currentContent.replace(searchPattern, op.replace);
 									}
 								}
 
-								const newContent = lines.join("\n")
+								// Final content after all operations
+								const newContent = currentContent;
 
 								this.consecutiveMistakeCount = 0
 

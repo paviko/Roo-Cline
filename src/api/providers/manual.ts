@@ -89,7 +89,7 @@ export class ManualHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		return { id: "Manual chat", info: { supportsPromptCache: false, supportsImages: false, contextWindow: 64000 } }
+		return { id: "Manual chat", info: { supportsPromptCache: false, supportsImages: false, contextWindow: 1_000_000, maxTokens: 1_000_000, inputPrice: 3.0, outputPrice: 15.0 } }
 	}
 }
 
