@@ -12,6 +12,7 @@ export interface WebviewMessage {
 	type:
 		| "requestsPerMinuteLimit"
 		| "apiConfiguration"
+		| "deleteMultipleTasksWithIds"
 		| "currentApiConfigName"
 		| "saveApiConfiguration"
 		| "upsertApiConfiguration"
@@ -22,7 +23,9 @@ export interface WebviewMessage {
 		| "customInstructions"
 		| "allowedCommands"
 		| "alwaysAllowReadOnly"
+		| "alwaysAllowReadOnlyOutsideWorkspace"
 		| "alwaysAllowWrite"
+		| "alwaysAllowWriteOutsideWorkspace"
 		| "alwaysAllowExecute"
 		| "webviewDidLaunch"
 		| "newTask"
@@ -51,7 +54,11 @@ export interface WebviewMessage {
 		| "alwaysAllowModeSwitch"
 		| "alwaysAllowSubtasks"
 		| "playSound"
+		| "playTts"
+		| "stopTts"
 		| "soundEnabled"
+		| "ttsEnabled"
+		| "ttsSpeed"
 		| "soundVolume"
 		| "diffEnabled"
 		| "enableCheckpoints"
@@ -65,16 +72,15 @@ export interface WebviewMessage {
 		| "toggleMcpServer"
 		| "updateMcpTimeout"
 		| "fuzzyMatchThreshold"
-		| "preferredLanguage"
 		| "writeDelayMs"
 		| "enhancePrompt"
 		| "enhancedPrompt"
 		| "draggedImages"
 		| "deleteMessage"
-		| "terminalOutputLimit"
+		| "terminalOutputLineLimit"
+		| "terminalShellIntegrationTimeout"
 		| "mcpEnabled"
 		| "enableMcpServerCreation"
-		| "enableCustomModeCreation"
 		| "searchCommits"
 		| "alwaysApproveResubmit"
 		| "requestDelaySeconds"
@@ -99,6 +105,7 @@ export interface WebviewMessage {
 		| "checkpointRestore"
 		| "deleteMcpServer"
 		| "maxOpenTabsContext"
+		| "maxWorkspaceFiles"
 		| "humanRelayResponse"
 		| "humanRelayCancel"
 		| "browserToolEnabled"
@@ -108,6 +115,9 @@ export interface WebviewMessage {
 		| "discoverBrowser"
 		| "browserConnectionResult"
 		| "remoteBrowserEnabled"
+		| "language"
+		| "maxReadFileLine"
+		| "searchFiles"
 	text?: string
 	requestsPerMinuteLimit?: Record<string, number>
 	disabled?: boolean
@@ -133,18 +143,7 @@ export interface WebviewMessage {
 	payload?: WebViewMessagePayload
 	source?: "global" | "project"
 	requestId?: string
-}
-
-// Human relay related message types
-export interface HumanRelayResponseMessage extends WebviewMessage {
-	type: "humanRelayResponse"
-	requestId: string
-	text: string
-}
-
-export interface HumanRelayCancelMessage extends WebviewMessage {
-	type: "humanRelayCancel"
-	requestId: string
+	ids?: string[]
 }
 
 export const checkoutDiffPayloadSchema = z.object({

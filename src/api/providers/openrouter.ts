@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta"
-import axios from "axios"
+import axios, { AxiosRequestConfig } from "axios"
 import OpenAI from "openai"
 import delay from "delay"
 
@@ -15,16 +15,13 @@ import { getModelParams, SingleCompletionHandler } from ".."
 import { BaseProvider } from "./base-provider"
 import { defaultHeaders } from "./openai"
 
+const OPENROUTER_DEFAULT_PROVIDER_NAME = "[default]"
+
 // Add custom interface for OpenRouter params.
 type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
 	transforms?: string[]
 	include_reasoning?: boolean
 	thinking?: BetaThinkingConfigParam
-}
-
-// Add custom interface for OpenRouter usage chunk.
-interface OpenRouterApiStreamUsageChunk extends ApiStreamUsageChunk {
-	fullResponseText: string
 }
 
 export class OpenRouterHandler extends BaseProvider implements SingleCompletionHandler {
@@ -108,14 +105,19 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 			top_p: topP,
 			messages: openAiMessages,
 			stream: true,
-			include_reasoning: true,
+			stream_options: { include_usage: true },
+			// Only include provider if openRouterSpecificProvider is not "[default]".
+			...(this.options.openRouterSpecificProvider &&
+				this.options.openRouterSpecificProvider !== OPENROUTER_DEFAULT_PROVIDER_NAME && {
+					provider: { order: [this.options.openRouterSpecificProvider] },
+				}),
 			// This way, the transforms field will only be included in the parameters when openRouterUseMiddleOutTransform is true.
 			...((this.options.openRouterUseMiddleOutTransform ?? true) && { transforms: ["middle-out"] }),
 		}
 
 		const stream = await this.client.chat.completions.create(completionParams)
 
-		let genId: string | undefined
+		let lastUsage
 
 		for await (const chunk of stream as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>) {
 			// OpenRouter returns an error object instead of the OpenAI SDK throwing an error.
@@ -125,68 +127,33 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 				throw new Error(`OpenRouter API Error ${error?.code}: ${error?.message}`)
 			}
 
-			if (!genId && chunk.id) {
-				genId = chunk.id
-			}
-
 			const delta = chunk.choices[0]?.delta
 
 			if ("reasoning" in delta && delta.reasoning) {
-				yield {
-					type: "reasoning",
-					text: delta.reasoning,
-				} as ApiStreamChunk
+				yield { type: "reasoning", text: delta.reasoning } as ApiStreamChunk
 			}
 
 			if (delta?.content) {
 				fullResponseText += delta.content
-				yield {
-					type: "text",
-					text: delta.content,
-				} as ApiStreamChunk
+				yield { type: "text", text: delta.content } as ApiStreamChunk
 			}
 
-			// if (chunk.usage) {
-			// 	yield {
-			// 		type: "usage",
-			// 		inputTokens: chunk.usage.prompt_tokens || 0,
-			// 		outputTokens: chunk.usage.completion_tokens || 0,
-			// 	}
-			// }
+			if (chunk.usage) {
+				lastUsage = chunk.usage
+			}
 		}
 
-		// Retry fetching generation details.
-		let attempt = 0
+		if (lastUsage) {
+			yield this.processUsageMetrics(lastUsage)
+		}
+	}
 
-		while (attempt++ < 10) {
-			await delay(200) // FIXME: necessary delay to ensure generation endpoint is ready
-
-			try {
-				const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
-					headers: {
-						Authorization: `Bearer ${this.options.openRouterApiKey}`,
-					},
-					timeout: 5_000, // this request hangs sometimes
-				})
-
-				const generation = response.data?.data
-
-				yield {
-					type: "usage",
-					// cacheWriteTokens: 0,
-					// cacheReadTokens: 0,
-					// openrouter generation endpoint fails often
-					inputTokens: generation?.native_tokens_prompt || 0,
-					outputTokens: generation?.native_tokens_completion || 0,
-					totalCost: generation?.total_cost || 0,
-					fullResponseText,
-				} as OpenRouterApiStreamUsageChunk
-
-				return
-			} catch (error) {
-				// ignore if fails
-				console.error("Error fetching OpenRouter generation details:", error)
-			}
+	processUsageMetrics(usage: any): ApiStreamUsageChunk {
+		return {
+			type: "usage",
+			inputTokens: usage?.prompt_tokens || 0,
+			outputTokens: usage?.completion_tokens || 0,
+			totalCost: usage?.cost || 0,
 		}
 	}
 
@@ -233,11 +200,13 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 	}
 }
 
-export async function getOpenRouterModels() {
+export async function getOpenRouterModels(options?: ApiHandlerOptions) {
 	const models: Record<string, ModelInfo> = {}
 
+	const baseURL = options?.openRouterBaseUrl || "https://openrouter.ai/api/v1"
+
 	try {
-		const response = await axios.get("https://openrouter.ai/api/v1/models")
+		const response = await axios.get(`${baseURL}/models`)
 		const rawModels = response.data.data
 
 		for (const rawModel of rawModels) {
@@ -259,7 +228,7 @@ export async function getOpenRouterModels() {
 					modelInfo.supportsPromptCache = true
 					modelInfo.cacheWritesPrice = 3.75
 					modelInfo.cacheReadsPrice = 0.3
-					modelInfo.maxTokens = rawModel.id === "anthropic/claude-3.7-sonnet:thinking" ? 128_000 : 16_384
+					modelInfo.maxTokens = rawModel.id === "anthropic/claude-3.7-sonnet:thinking" ? 128_000 : 8192
 					break
 				case rawModel.id.startsWith("anthropic/claude-3.5-sonnet-20240620"):
 					modelInfo.supportsPromptCache = true
@@ -287,11 +256,12 @@ export async function getOpenRouterModels() {
 					modelInfo.maxTokens = 8192
 					break
 				case rawModel.id.startsWith("anthropic/claude-3-haiku"):
-				default:
 					modelInfo.supportsPromptCache = true
 					modelInfo.cacheWritesPrice = 0.3
 					modelInfo.cacheReadsPrice = 0.03
 					modelInfo.maxTokens = 8192
+					break
+				default:
 					break
 			}
 

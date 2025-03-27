@@ -7,7 +7,7 @@ import { CustomSupportPrompts } from "./support-prompt"
 import { ExperimentId } from "./experiments"
 import { CheckpointStorage } from "./checkpoints"
 import { TelemetrySetting } from "./TelemetrySetting"
-import { ClineMessage, ClineAsk, ClineSay } from "../exports/roo-code"
+import type { ClineMessage, ClineAsk, ClineSay } from "../exports/roo-code"
 
 export interface LanguageModelChatSelector {
 	vendor?: string
@@ -55,6 +55,10 @@ export interface ExtensionMessage {
 		| "browserToolEnabled"
 		| "browserConnectionResult"
 		| "remoteBrowserEnabled"
+		| "ttsStart"
+		| "ttsStop"
+		| "maxReadFileLine"
+		| "fileSearchResults"
 	text?: string
 	action?:
 		| "addFilesToContext"
@@ -64,8 +68,7 @@ export interface ExtensionMessage {
 		| "historyButtonClicked"
 		| "promptsButtonClicked"
 		| "didBecomeVisible"
-
-	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick" | "setChatBoxMessage"
+	invoke?: "newChat" | "sendMessage" | "primaryButtonClick" | "secondaryButtonClick" | "setChatBoxMessage"
 	state?: ExtensionState
 	images?: string[]
 	ollamaModels?: string[]
@@ -91,6 +94,14 @@ export interface ExtensionMessage {
 	slug?: string
 	success?: boolean
 	values?: Record<string, any>
+	requestId?: string
+	promptText?: string
+	results?: Array<{
+		path: string
+		type: "file" | "folder"
+		label?: string
+	}>
+	error?: string
 }
 
 export interface ApiConfigMeta {
@@ -112,7 +123,9 @@ export interface ExtensionState {
 	customModePrompts?: CustomModePrompts
 	customSupportPrompts?: CustomSupportPrompts
 	alwaysAllowReadOnly?: boolean
+	alwaysAllowReadOnlyOutsideWorkspace?: boolean
 	alwaysAllowWrite?: boolean
+	alwaysAllowWriteOutsideWorkspace?: boolean
 	alwaysAllowExecute?: boolean
 	alwaysAllowBrowser?: boolean
 	alwaysAllowMcp?: boolean
@@ -126,6 +139,8 @@ export interface ExtensionState {
 	currentTaskItem?: HistoryItem
 	allowedCommands?: string[]
 	soundEnabled?: boolean
+	ttsEnabled?: boolean
+	ttsSpeed?: number
 	soundVolume?: number
 	diffEnabled?: boolean
 	enableCheckpoints: boolean
@@ -135,12 +150,12 @@ export interface ExtensionState {
 	remoteBrowserHost?: string
 	remoteBrowserEnabled?: boolean
 	fuzzyMatchThreshold?: number
-	preferredLanguage: string
+	language?: string
 	writeDelayMs: number
-	terminalOutputLimit?: number
+	terminalOutputLineLimit?: number
+	terminalShellIntegrationTimeout?: number
 	mcpEnabled: boolean
 	enableMcpServerCreation: boolean
-	enableCustomModeCreation?: boolean
 	mode: Mode
 	modeApiConfigs?: Record<Mode, string>
 	enhancementApiConfigId?: string
@@ -149,11 +164,14 @@ export interface ExtensionState {
 	customModes: ModeConfig[]
 	toolRequirements?: Record<string, boolean> // Map of tool names to their requirements (e.g. {"apply_diff": true} if diffEnabled)
 	maxOpenTabsContext: number // Maximum number of VSCode open tabs to include in context (0-500)
+	maxWorkspaceFiles: number // Maximum number of files to include in current working directory details (0-500)
 	cwd?: string // Current working directory
 	telemetrySetting: TelemetrySetting
 	telemetryKey?: string
 	machineId?: string
 	showRooIgnoredFiles: boolean // Whether to show .rooignore'd files in listings
+	renderContext: "sidebar" | "editor"
+	maxReadFileLine: number // Maximum number of lines to read from a file before truncating
 }
 
 export type { ClineMessage, ClineAsk, ClineSay }
@@ -164,6 +182,7 @@ export interface ClineSayTool {
 		| "appliedDiff"
 		| "newFileCreated"
 		| "readFile"
+		| "fetchInstructions"
 		| "listFilesTopLevel"
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
@@ -178,6 +197,7 @@ export interface ClineSayTool {
 	filePattern?: string
 	mode?: string
 	reason?: string
+	isOutsideWorkspace?: boolean
 }
 
 // Must keep in sync with system prompt.
@@ -215,23 +235,6 @@ export interface ClineApiReqInfo {
 	cost?: number
 	cancelReason?: ClineApiReqCancelReason
 	streamingFailedMessage?: string
-}
-
-export interface ShowHumanRelayDialogMessage {
-	type: "showHumanRelayDialog"
-	requestId: string
-	promptText: string
-}
-
-export interface HumanRelayResponseMessage {
-	type: "humanRelayResponse"
-	requestId: string
-	text: string
-}
-
-export interface HumanRelayCancelMessage {
-	type: "humanRelayCancel"
-	requestId: string
 }
 
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"

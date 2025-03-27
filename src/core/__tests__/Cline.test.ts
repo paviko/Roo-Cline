@@ -139,6 +139,10 @@ jest.mock("vscode", () => {
 	}
 
 	return {
+		CodeActionKind: {
+			QuickFix: { value: "quickfix" },
+			RefactorRewrite: { value: "refactor.rewrite" },
+		},
 		window: {
 			createTextEditorDecorationType: jest.fn().mockReturnValue({
 				dispose: jest.fn(),
@@ -148,6 +152,7 @@ jest.mock("vscode", () => {
 				all: [mockTabGroup],
 				onDidChangeTabs: jest.fn(() => ({ dispose: jest.fn() })),
 			},
+			showErrorMessage: jest.fn(),
 		},
 		workspace: {
 			workspaceFolders: [
