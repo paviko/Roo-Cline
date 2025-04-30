@@ -3,7 +3,6 @@ import { ApiHandler } from ".."
 import { ApiHandlerOptions, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import * as vscode from "vscode"
-import * as path from "path"
 import * as fs from "fs"
 
 export class ManualHandler implements ApiHandler {
@@ -65,8 +64,8 @@ export class ManualHandler implements ApiHandler {
 
 		yield {
 			type: "usage",
-			inputTokens: Math.ceil(inputTextLength / 4),
-			outputTokens: Math.ceil(outputTextLength / 4),
+			inputTokens: Math.ceil(inputTextLength / 3),
+			outputTokens: Math.ceil(outputTextLength / 3),
 		}
 	}
 

@@ -2,10 +2,10 @@
 
 import { render, screen, act } from "@testing-library/react"
 
-import { ExtensionState } from "../../../../src/shared/ExtensionMessage"
+import { ExtensionState } from "@roo/shared/ExtensionMessage"
 import { ExtensionStateContextProvider, useExtensionState, mergeExtensionState } from "../ExtensionStateContext"
-import { ExperimentId } from "../../../../src/shared/experiments"
-import { ApiConfiguration } from "../../../../src/shared/api"
+import { ExperimentId } from "@roo/shared/experiments"
+import { ApiConfiguration } from "@roo/shared/api"
 
 // Test component that consumes the context
 const TestComponent = () => {
@@ -190,10 +190,8 @@ describe("mergeExtensionState", () => {
 			taskHistory: [],
 			shouldShowAnnouncement: false,
 			enableCheckpoints: true,
-			checkpointStorage: "task",
 			writeDelayMs: 1000,
 			requestDelaySeconds: 5,
-			rateLimitSeconds: 0,
 			mode: "default",
 			experiments: {} as Record<ExperimentId, boolean>,
 			customModes: [],
@@ -204,16 +202,13 @@ describe("mergeExtensionState", () => {
 			showRooIgnoredFiles: true,
 			renderContext: "sidebar",
 			maxReadFileLine: 500,
+			requestsPerMinuteLimit: {},
 		}
 
 		const prevState: ExtensionState = {
 			...baseState,
 			apiConfiguration: { modelMaxTokens: 1234, modelMaxThinkingTokens: 123 },
-			experiments: {
-				experimentalDiffStrategy: true,
-				search_and_replace: true,
-				insert_content: true,
-			} as Record<ExperimentId, boolean>,
+			experiments: {} as Record<ExperimentId, boolean>,
 		}
 
 		const newState: ExtensionState = {
@@ -221,7 +216,6 @@ describe("mergeExtensionState", () => {
 			apiConfiguration: { modelMaxThinkingTokens: 456, modelTemperature: 0.3 },
 			experiments: {
 				powerSteering: true,
-				multi_search_and_replace: true,
 			} as Record<ExperimentId, boolean>,
 		}
 
@@ -233,11 +227,7 @@ describe("mergeExtensionState", () => {
 		})
 
 		expect(result.experiments).toEqual({
-			experimentalDiffStrategy: true,
-			search_and_replace: true,
-			insert_content: true,
 			powerSteering: true,
-			multi_search_and_replace: true,
 		})
 	})
 })

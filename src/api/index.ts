@@ -10,6 +10,7 @@ import { AnthropicHandler } from "./providers/anthropic"
 import { AwsBedrockHandler } from "./providers/bedrock"
 import { OpenRouterHandler } from "./providers/openrouter"
 import { VertexHandler } from "./providers/vertex"
+import { AnthropicVertexHandler } from "./providers/anthropic-vertex"
 import { OpenAiHandler } from "./providers/openai"
 import { OllamaHandler } from "./providers/ollama"
 import { LmStudioHandler } from "./providers/lmstudio"
@@ -23,13 +24,15 @@ import { UnboundHandler } from "./providers/unbound"
 import { RequestyHandler } from "./providers/requesty"
 import { HumanRelayHandler } from "./providers/human-relay"
 import { FakeAIHandler } from "./providers/fake-ai"
+import { XAIHandler } from "./providers/xai"
 
 export interface SingleCompletionHandler {
 	completePrompt(prompt: string): Promise<string>
 }
 
 export interface ApiHandler {
-	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
+	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], cacheKey?: string): ApiStream
+
 	getModel(): { requestsPerMinuteLimit?: number; id: string; info: ModelInfo }
 
 	/**
@@ -45,6 +48,7 @@ export interface ApiHandler {
 
 export function buildApiHandler(configuration: ApiConfiguration, extensionUri: vscode.Uri): ApiHandler {
 	const { apiProvider, ...options } = configuration
+
 	switch (apiProvider) {
 		case "manual":
 			return new ManualHandler(options, extensionUri)
@@ -57,7 +61,11 @@ export function buildApiHandler(configuration: ApiConfiguration, extensionUri: v
 		case "bedrock":
 			return new AwsBedrockHandler(options)
 		case "vertex":
-			return new VertexHandler(options)
+			if (options.apiModelId?.startsWith("claude")) {
+				return new AnthropicVertexHandler(options)
+			} else {
+				return new VertexHandler(options)
+			}
 		case "openai":
 			return new OpenAiHandler(options)
 		case "ollama":
@@ -79,9 +87,11 @@ export function buildApiHandler(configuration: ApiConfiguration, extensionUri: v
 		case "requesty":
 			return new RequestyHandler(options)
 		case "human-relay":
-			return new HumanRelayHandler(options)
+			return new HumanRelayHandler()
 		case "fake-ai":
 			return new FakeAIHandler(options)
+		case "xai":
+			return new XAIHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}
@@ -92,21 +102,25 @@ export function getModelParams({
 	model,
 	defaultMaxTokens,
 	defaultTemperature = 0,
+	defaultReasoningEffort,
 }: {
 	options: ApiHandlerOptions
 	model: ModelInfo
 	defaultMaxTokens?: number
 	defaultTemperature?: number
+	defaultReasoningEffort?: "low" | "medium" | "high"
 }) {
 	const {
 		modelMaxTokens: customMaxTokens,
 		modelMaxThinkingTokens: customMaxThinkingTokens,
 		modelTemperature: customTemperature,
+		reasoningEffort: customReasoningEffort,
 	} = options
 
 	let maxTokens = model.maxTokens ?? defaultMaxTokens
 	let thinking: BetaThinkingConfigParam | undefined = undefined
 	let temperature = customTemperature ?? defaultTemperature
+	const reasoningEffort = customReasoningEffort ?? defaultReasoningEffort
 
 	if (model.thinking) {
 		// Only honor `customMaxTokens` for thinking models.
@@ -122,5 +136,5 @@ export function getModelParams({
 		temperature = 1.0
 	}
 
-	return { maxTokens, thinking, temperature }
+	return { maxTokens, thinking, temperature, reasoningEffort }
 }

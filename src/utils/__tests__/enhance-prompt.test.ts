@@ -14,6 +14,7 @@ describe("enhancePrompt", () => {
 		apiProvider: "openai",
 		openAiApiKey: "test-key",
 		openAiBaseUrl: "https://api.openai.com/v1",
+		enableReasoningEffort: false,
 	}
 
 	beforeEach(() => {
@@ -101,6 +102,7 @@ describe("enhancePrompt", () => {
 			apiProvider: "openrouter",
 			openRouterApiKey: "test-key",
 			openRouterModelId: "test-model",
+			enableReasoningEffort: false,
 		}
 
 		// Mock successful enhancement
