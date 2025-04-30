@@ -2158,7 +2158,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		// Add recently modified files section.
 		const recentlyModifiedFiles = this.fileContextTracker.getAndClearRecentlyModifiedFiles()
 
-		if (recentlyModifiedFiles.length > 0) {
+		if (/*recentlyModifiedFiles.length > 0*/ false) { // disable for now
 			details +=
 				"\n\n# Recently Modified Files\nThese files have been modified since you last accessed them (file was just edited so you may need to re-read it before editing):"
 			for (const filePath of recentlyModifiedFiles) {
