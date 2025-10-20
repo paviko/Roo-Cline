@@ -25,7 +25,7 @@ import { ThinkingBudget } from "../ThinkingBudget"
 
 type OpenAICompatibleProps = {
     apiConfiguration: ProviderSettings
-    setApiConfigurationField: (field: keyof ProviderSettings, value: ProviderSettings[keyof ProviderSettings]) => void
+    setApiConfigurationField: (field: keyof ProviderSettings, value: ProviderSettings[keyof ProviderSettings], isUserAction?: boolean) => void
     organizationAllowList: OrganizationAllowList
     modelValidationError?: string
 }
