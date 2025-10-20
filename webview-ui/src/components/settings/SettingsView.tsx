@@ -128,6 +128,13 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 
 	const [cachedState, setCachedState] = useState(() => extensionState)
 
+	// Keep a ref to the latest cached state so we can read fresh values inside
+	// event handlers (e.g., Save) even if React hasn't flushed a re-render yet.
+	const latestStateRef = useRef(cachedState)
+	useEffect(() => {
+		latestStateRef.current = cachedState
+	}, [cachedState])
+
 	const {
 		alwaysAllowReadOnly,
 		alwaysAllowReadOnlyOutsideWorkspace,
@@ -150,12 +157,12 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		browserToolEnabled,
 		browserViewportSize,
 		enableCheckpoints,
-		diffEnabled,
+		diffEnabled: _diffEnabled,
 		experiments,
-		fuzzyMatchThreshold,
+		fuzzyMatchThreshold: _fuzzyMatchThreshold,
 		maxOpenTabsContext,
 		maxWorkspaceFiles,
-		mcpEnabled,
+		mcpEnabled: _mcpEnabled,
 		requestDelaySeconds,
 		remoteBrowserHost,
 		screenshotQuality,
@@ -182,8 +189,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		maxTotalImageSize,
 		terminalCompressProgressBar,
 		maxConcurrentFileReads,
-		condensingApiConfigId,
-		customCondensingPrompt,
+		condensingApiConfigId: _condensingApiConfigId,
+		customCondensingPrompt: _customCondensingPrompt,
 		customSupportPrompts,
 		profileThresholds,
 		alwaysAllowFollowupQuestions,
@@ -316,81 +323,91 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 
 	const isSettingValid = !errorMessage
 
-	const handleSubmit = () => {
+	const handleSubmit = async () => {
 		if (isSettingValid) {
-			vscode.postMessage({ type: "language", text: language })
-			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
+			// Allow any pending state updates from the last user interaction to flush
+			await new Promise((resolve) => setTimeout(resolve, 0))
+			const s = latestStateRef.current
+			vscode.postMessage({ type: "language", text: s.language })
+			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: s.alwaysAllowReadOnly })
 			vscode.postMessage({
 				type: "alwaysAllowReadOnlyOutsideWorkspace",
-				bool: alwaysAllowReadOnlyOutsideWorkspace,
+				bool: s.alwaysAllowReadOnlyOutsideWorkspace,
 			})
-			vscode.postMessage({ type: "alwaysAllowWrite", bool: alwaysAllowWrite })
-			vscode.postMessage({ type: "alwaysAllowWriteOutsideWorkspace", bool: alwaysAllowWriteOutsideWorkspace })
-			vscode.postMessage({ type: "alwaysAllowWriteProtected", bool: alwaysAllowWriteProtected })
-			vscode.postMessage({ type: "alwaysAllowExecute", bool: alwaysAllowExecute })
-			vscode.postMessage({ type: "alwaysAllowBrowser", bool: alwaysAllowBrowser })
-			vscode.postMessage({ type: "alwaysAllowMcp", bool: alwaysAllowMcp })
-			vscode.postMessage({ type: "allowedCommands", commands: allowedCommands ?? [] })
-			vscode.postMessage({ type: "deniedCommands", commands: deniedCommands ?? [] })
-			vscode.postMessage({ type: "allowedMaxRequests", value: allowedMaxRequests ?? undefined })
-			vscode.postMessage({ type: "allowedMaxCost", value: allowedMaxCost ?? undefined })
-			vscode.postMessage({ type: "autoCondenseContext", bool: autoCondenseContext })
-			vscode.postMessage({ type: "autoCondenseContextPercent", value: autoCondenseContextPercent })
-			vscode.postMessage({ type: "browserToolEnabled", bool: browserToolEnabled })
-			vscode.postMessage({ type: "soundEnabled", bool: soundEnabled })
-			vscode.postMessage({ type: "ttsEnabled", bool: ttsEnabled })
-			vscode.postMessage({ type: "ttsSpeed", value: ttsSpeed })
-			vscode.postMessage({ type: "soundVolume", value: soundVolume })
-			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
-			vscode.postMessage({ type: "enableCheckpoints", bool: enableCheckpoints })
-			vscode.postMessage({ type: "browserViewportSize", text: browserViewportSize })
-			vscode.postMessage({ type: "remoteBrowserHost", text: remoteBrowserHost })
-			vscode.postMessage({ type: "remoteBrowserEnabled", bool: remoteBrowserEnabled })
-			vscode.postMessage({ type: "fuzzyMatchThreshold", value: fuzzyMatchThreshold ?? 1.0 })
-			vscode.postMessage({ type: "writeDelayMs", value: writeDelayMs })
-			vscode.postMessage({ type: "screenshotQuality", value: screenshotQuality ?? 75 })
-			vscode.postMessage({ type: "terminalOutputLineLimit", value: terminalOutputLineLimit ?? 500 })
-			vscode.postMessage({ type: "terminalOutputCharacterLimit", value: terminalOutputCharacterLimit ?? 50000 })
-			vscode.postMessage({ type: "terminalShellIntegrationTimeout", value: terminalShellIntegrationTimeout })
-			vscode.postMessage({ type: "terminalShellIntegrationDisabled", bool: terminalShellIntegrationDisabled })
-			vscode.postMessage({ type: "terminalCommandDelay", value: terminalCommandDelay })
-			vscode.postMessage({ type: "terminalPowershellCounter", bool: terminalPowershellCounter })
-			vscode.postMessage({ type: "terminalZshClearEolMark", bool: terminalZshClearEolMark })
-			vscode.postMessage({ type: "terminalZshOhMy", bool: terminalZshOhMy })
-			vscode.postMessage({ type: "terminalZshP10k", bool: terminalZshP10k })
-			vscode.postMessage({ type: "terminalZdotdir", bool: terminalZdotdir })
-			vscode.postMessage({ type: "terminalCompressProgressBar", bool: terminalCompressProgressBar })
-			vscode.postMessage({ type: "mcpEnabled", bool: mcpEnabled })
-			vscode.postMessage({ type: "alwaysApproveResubmit", bool: alwaysApproveResubmit })
-			vscode.postMessage({ type: "requestDelaySeconds", value: requestDelaySeconds })
-			vscode.postMessage({ type: "maxOpenTabsContext", value: maxOpenTabsContext })
-			vscode.postMessage({ type: "maxWorkspaceFiles", value: maxWorkspaceFiles ?? 200 })
-			vscode.postMessage({ type: "showRooIgnoredFiles", bool: showRooIgnoredFiles })
-			vscode.postMessage({ type: "maxReadFileLine", value: maxReadFileLine ?? -1 })
-			vscode.postMessage({ type: "maxImageFileSize", value: maxImageFileSize ?? 5 })
-			vscode.postMessage({ type: "maxTotalImageSize", value: maxTotalImageSize ?? 20 })
-			vscode.postMessage({ type: "maxConcurrentFileReads", value: cachedState.maxConcurrentFileReads ?? 5 })
-			vscode.postMessage({ type: "includeDiagnosticMessages", bool: includeDiagnosticMessages })
-			vscode.postMessage({ type: "maxDiagnosticMessages", value: maxDiagnosticMessages ?? 50 })
-			vscode.postMessage({ type: "currentApiConfigName", text: currentApiConfigName })
-			vscode.postMessage({ type: "updateExperimental", values: experiments })
-			vscode.postMessage({ type: "alwaysAllowModeSwitch", bool: alwaysAllowModeSwitch })
-			vscode.postMessage({ type: "alwaysAllowSubtasks", bool: alwaysAllowSubtasks })
-			vscode.postMessage({ type: "alwaysAllowFollowupQuestions", bool: alwaysAllowFollowupQuestions })
-			vscode.postMessage({ type: "alwaysAllowUpdateTodoList", bool: alwaysAllowUpdateTodoList })
-			vscode.postMessage({ type: "followupAutoApproveTimeoutMs", value: followupAutoApproveTimeoutMs })
-			vscode.postMessage({ type: "condensingApiConfigId", text: condensingApiConfigId || "" })
-			vscode.postMessage({ type: "updateCondensingPrompt", text: customCondensingPrompt || "" })
-			vscode.postMessage({ type: "updateSupportPrompt", values: customSupportPrompts || {} })
-			vscode.postMessage({ type: "includeTaskHistoryInEnhance", bool: includeTaskHistoryInEnhance ?? true })
-			vscode.postMessage({ type: "setReasoningBlockCollapsed", bool: reasoningBlockCollapsed ?? true })
-			vscode.postMessage({ type: "upsertApiConfiguration", text: currentApiConfigName, apiConfiguration })
-			vscode.postMessage({ type: "telemetrySetting", text: telemetrySetting })
-			vscode.postMessage({ type: "profileThresholds", values: profileThresholds })
-			vscode.postMessage({ type: "openRouterImageApiKey", text: openRouterImageApiKey })
+			vscode.postMessage({ type: "alwaysAllowWrite", bool: s.alwaysAllowWrite })
+			vscode.postMessage({ type: "alwaysAllowWriteOutsideWorkspace", bool: s.alwaysAllowWriteOutsideWorkspace })
+			vscode.postMessage({ type: "alwaysAllowWriteProtected", bool: s.alwaysAllowWriteProtected })
+			vscode.postMessage({ type: "alwaysAllowExecute", bool: s.alwaysAllowExecute })
+			vscode.postMessage({ type: "alwaysAllowBrowser", bool: s.alwaysAllowBrowser })
+			vscode.postMessage({ type: "alwaysAllowMcp", bool: s.alwaysAllowMcp })
+			vscode.postMessage({ type: "allowedCommands", commands: s.allowedCommands ?? [] })
+			vscode.postMessage({ type: "deniedCommands", commands: s.deniedCommands ?? [] })
+			vscode.postMessage({ type: "allowedMaxRequests", value: s.allowedMaxRequests ?? undefined })
+			vscode.postMessage({ type: "allowedMaxCost", value: s.allowedMaxCost ?? undefined })
+			vscode.postMessage({ type: "autoCondenseContext", bool: s.autoCondenseContext })
+			vscode.postMessage({ type: "autoCondenseContextPercent", value: s.autoCondenseContextPercent })
+			vscode.postMessage({ type: "browserToolEnabled", bool: s.browserToolEnabled })
+			vscode.postMessage({ type: "soundEnabled", bool: s.soundEnabled })
+			vscode.postMessage({ type: "ttsEnabled", bool: s.ttsEnabled })
+			vscode.postMessage({ type: "ttsSpeed", value: s.ttsSpeed })
+			vscode.postMessage({ type: "soundVolume", value: s.soundVolume })
+			vscode.postMessage({ type: "diffEnabled", bool: s.diffEnabled })
+			vscode.postMessage({ type: "enableCheckpoints", bool: s.enableCheckpoints })
+			vscode.postMessage({ type: "browserViewportSize", text: s.browserViewportSize })
+			vscode.postMessage({ type: "remoteBrowserHost", text: s.remoteBrowserHost })
+			vscode.postMessage({ type: "remoteBrowserEnabled", bool: s.remoteBrowserEnabled })
+			vscode.postMessage({ type: "fuzzyMatchThreshold", value: s.fuzzyMatchThreshold ?? 1.0 })
+			vscode.postMessage({ type: "writeDelayMs", value: s.writeDelayMs })
+			vscode.postMessage({ type: "screenshotQuality", value: s.screenshotQuality ?? 75 })
+			vscode.postMessage({ type: "terminalOutputLineLimit", value: s.terminalOutputLineLimit ?? 500 })
+			vscode.postMessage({ type: "terminalOutputCharacterLimit", value: s.terminalOutputCharacterLimit ?? 50000 })
+			vscode.postMessage({ type: "terminalShellIntegrationTimeout", value: s.terminalShellIntegrationTimeout })
+			vscode.postMessage({ type: "terminalShellIntegrationDisabled", bool: s.terminalShellIntegrationDisabled })
+			vscode.postMessage({ type: "terminalCommandDelay", value: s.terminalCommandDelay })
+			vscode.postMessage({ type: "terminalPowershellCounter", bool: s.terminalPowershellCounter })
+			vscode.postMessage({ type: "terminalZshClearEolMark", bool: s.terminalZshClearEolMark })
+			vscode.postMessage({ type: "terminalZshOhMy", bool: s.terminalZshOhMy })
+			vscode.postMessage({ type: "terminalZshP10k", bool: s.terminalZshP10k })
+			vscode.postMessage({ type: "terminalZdotdir", bool: s.terminalZdotdir })
+			vscode.postMessage({ type: "terminalCompressProgressBar", bool: s.terminalCompressProgressBar })
+			vscode.postMessage({ type: "mcpEnabled", bool: s.mcpEnabled })
+			vscode.postMessage({ type: "alwaysApproveResubmit", bool: s.alwaysApproveResubmit })
+			vscode.postMessage({ type: "requestDelaySeconds", value: s.requestDelaySeconds })
+			vscode.postMessage({ type: "maxOpenTabsContext", value: s.maxOpenTabsContext })
+			vscode.postMessage({ type: "maxWorkspaceFiles", value: s.maxWorkspaceFiles ?? 200 })
+			vscode.postMessage({ type: "showRooIgnoredFiles", bool: s.showRooIgnoredFiles })
+			vscode.postMessage({ type: "maxReadFileLine", value: s.maxReadFileLine ?? -1 })
+			vscode.postMessage({ type: "maxImageFileSize", value: s.maxImageFileSize ?? 5 })
+			vscode.postMessage({ type: "maxTotalImageSize", value: s.maxTotalImageSize ?? 20 })
+			vscode.postMessage({ type: "maxConcurrentFileReads", value: s.maxConcurrentFileReads ?? 5 })
+			vscode.postMessage({ type: "includeDiagnosticMessages", bool: s.includeDiagnosticMessages })
+			vscode.postMessage({ type: "maxDiagnosticMessages", value: s.maxDiagnosticMessages ?? 50 })
+			vscode.postMessage({ type: "currentApiConfigName", text: s.currentApiConfigName })
+			vscode.postMessage({ type: "updateExperimental", values: s.experiments })
+			vscode.postMessage({ type: "alwaysAllowModeSwitch", bool: s.alwaysAllowModeSwitch })
+			vscode.postMessage({ type: "alwaysAllowSubtasks", bool: s.alwaysAllowSubtasks })
+			vscode.postMessage({ type: "alwaysAllowFollowupQuestions", bool: s.alwaysAllowFollowupQuestions })
+			vscode.postMessage({ type: "alwaysAllowUpdateTodoList", bool: s.alwaysAllowUpdateTodoList })
+			vscode.postMessage({ type: "followupAutoApproveTimeoutMs", value: s.followupAutoApproveTimeoutMs })
+			vscode.postMessage({ type: "condensingApiConfigId", text: s.condensingApiConfigId || "" })
+			// First update support prompts as a whole
+			vscode.postMessage({ type: "updateSupportPrompt", values: s.customSupportPrompts || {} })
+			// Then update the dedicated condensing prompt key so it isn't overwritten by the previous call
+			vscode.postMessage({ type: "updateCondensingPrompt", text: s.customCondensingPrompt || "" })
+			vscode.postMessage({ type: "includeTaskHistoryInEnhance", bool: s.includeTaskHistoryInEnhance ?? true })
+			vscode.postMessage({ type: "setReasoningBlockCollapsed", bool: s.reasoningBlockCollapsed ?? true })
+			vscode.postMessage({ type: "telemetrySetting", text: s.telemetrySetting })
+			vscode.postMessage({ type: "profileThresholds", values: s.profileThresholds })
+			vscode.postMessage({ type: "openRouterImageApiKey", text: s.openRouterImageApiKey })
 			vscode.postMessage({
 				type: "openRouterImageGenerationSelectedModel",
-				text: openRouterImageGenerationSelectedModel,
+				text: s.openRouterImageGenerationSelectedModel,
+			})
+			// Persist provider settings last to avoid intermediate state updates clobbering values
+			vscode.postMessage({
+				type: "upsertApiConfiguration",
+				text: s.currentApiConfigName,
+				apiConfiguration: s.apiConfiguration ?? {},
 			})
 			setChangeDetected(false)
 		}
